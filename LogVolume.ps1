@@ -10,6 +10,8 @@ using System;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace LogVolumeApp {
     [Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -74,6 +76,79 @@ namespace LogVolumeApp {
     public interface IAudioMute {
         [PreserveSig] int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, ref Guid eventContext);
         [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
+    }
+
+    [Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IAudioMeterInformation {
+        [PreserveSig] int GetPeakValue(out float peak);
+        [PreserveSig] int GetMeteringChannelCount(out uint channelCount);
+        [PreserveSig] int GetChannelsPeakValues(uint channelCount, [In, Out] float[] peakValues);
+        [PreserveSig] int QueryHardwareSupport(out uint hardwareSupportMask);
+    }
+
+    public class AudioMeterBar : Control {
+        public AudioMeterBar() {
+            this.DoubleBuffered = true;
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint |
+                          ControlStyles.UserPaint |
+                          ControlStyles.OptimizedDoubleBuffer, true);
+            this.BgColor = Color.FromArgb(40, 40, 40);
+            this.GreenColor = Color.FromArgb(40, 180, 80);
+            this.YellowColor = Color.FromArgb(230, 180, 20);
+            this.RedColor = Color.FromArgb(230, 50, 50);
+        }
+        private float currentPeak = 0f;
+        public float Peak { get; set; }
+        public Color BgColor { get; set; }
+        public Color GreenColor { get; set; }
+        public Color YellowColor { get; set; }
+        public Color RedColor { get; set; }
+
+        public void SetPeakWithDecay(float newPeak) {
+            if (newPeak >= currentPeak) {
+                currentPeak = newPeak;
+            } else {
+                currentPeak = currentPeak * 0.82f;
+                if (currentPeak < 0.001f) currentPeak = 0f;
+            }
+            this.Peak = currentPeak;
+        }
+
+        protected override void OnPaint(PaintEventArgs e) {
+            base.OnPaint(e);
+            var g = e.Graphics;
+            int w = this.Width;
+            int h = this.Height;
+            using (var br = new SolidBrush(BgColor)) {
+                g.FillRectangle(br, 0, 0, w, h);
+            }
+            if (Peak <= 0.0001f) return;
+            float p = Peak > 1f ? 1f : Peak;
+            int barW = (int)(w * p);
+            if (barW <= 0) return;
+
+            int greenEnd = (int)(w * 0.70f);
+            int yellowEnd = (int)(w * 0.90f);
+
+            int drawG = Math.Min(barW, greenEnd);
+            if (drawG > 0) {
+                using (var br = new SolidBrush(GreenColor)) {
+                    g.FillRectangle(br, 0, 0, drawG, h);
+                }
+            }
+            if (barW > greenEnd) {
+                int drawY = Math.Min(barW, yellowEnd) - greenEnd;
+                using (var br = new SolidBrush(YellowColor)) {
+                    g.FillRectangle(br, greenEnd, 0, drawY, h);
+                }
+            }
+            if (barW > yellowEnd) {
+                int drawR = barW - yellowEnd;
+                using (var br = new SolidBrush(RedColor)) {
+                    g.FillRectangle(br, yellowEnd, 0, drawR, h);
+                }
+            }
+        }
     }
 
     [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -920,11 +995,105 @@ namespace LogVolumeApp {
         public static bool IsSidetoneAvailable() {
             return GetSidetonePart(131074) != null;
         }
+
+        public static float GetMasterPeak() {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDevice dev = null;
+            try {
+                dev = GetDefaultRenderEndpoint(out enumerator);
+                if (dev == null) return 0f;
+                Guid iid = typeof(IAudioMeterInformation).GUID;
+                object obj;
+                dev.Activate(ref iid, 1, IntPtr.Zero, out obj);
+                var meter = obj as IAudioMeterInformation;
+                if (meter == null) return 0f;
+                float peak = 0f;
+                meter.GetPeakValue(out peak);
+                return peak;
+            } catch { return 0f; }
+            finally {
+                if (dev != null) Marshal.ReleaseComObject(dev);
+                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+            }
+        }
+
+        public static float GetMicPeak() {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDevice dev = null;
+            try {
+                dev = GetDefaultCaptureEndpoint(out enumerator);
+                if (dev == null) return 0f;
+                Guid iid = typeof(IAudioMeterInformation).GUID;
+                object obj;
+                dev.Activate(ref iid, 1, IntPtr.Zero, out obj);
+                var meter = obj as IAudioMeterInformation;
+                if (meter == null) return 0f;
+                float peak = 0f;
+                meter.GetPeakValue(out peak);
+                return peak;
+            } catch { return 0f; }
+            finally {
+                if (dev != null) Marshal.ReleaseComObject(dev);
+                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+            }
+        }
+
+        public static float GetSessionPeak(int targetPid) {
+            if (targetPid == -1) {
+                return GetMasterPeak();
+            }
+            IMMDeviceEnumerator enumerator = null;
+            IMMDevice dev = null;
+            IAudioSessionManager2 mgr = null;
+            IAudioSessionEnumerator sessionEnum = null;
+            try {
+                dev = GetDefaultRenderEndpoint(out enumerator);
+                if (dev == null) return 0f;
+                Guid IID_Mgr = typeof(IAudioSessionManager2).GUID;
+                object obj;
+                dev.Activate(ref IID_Mgr, 1, IntPtr.Zero, out obj);
+                mgr = obj as IAudioSessionManager2;
+                if (mgr == null) return 0f;
+
+                mgr.GetSessionEnumerator(out sessionEnum);
+                if (sessionEnum == null) return 0f;
+
+                int count;
+                sessionEnum.GetCount(out count);
+                for (int i = 0; i < count; i++) {
+                    IAudioSessionControl2 ctl = null;
+                    try {
+                        sessionEnum.GetSession(i, out ctl);
+                        if (ctl == null) continue;
+
+                        int pid = 0;
+                        ctl.GetProcessId(out pid);
+                        if (pid == targetPid) {
+                            var meter = ctl as IAudioMeterInformation;
+                            if (meter != null) {
+                                float peak = 0f;
+                                meter.GetPeakValue(out peak);
+                                return peak;
+                            }
+                        }
+                    } finally {
+                        if (ctl != null) Marshal.ReleaseComObject(ctl);
+                    }
+                }
+                return 0f;
+            } catch { return 0f; }
+            finally {
+                if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
+                if (mgr != null) Marshal.ReleaseComObject(mgr);
+                if (dev != null) Marshal.ReleaseComObject(dev);
+                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+            }
+        }
     }
 }
 "@
 
-Add-Type -TypeDefinition $csharp
+Add-Type -TypeDefinition $csharp -ReferencedAssemblies System.Windows.Forms, System.Drawing
 
 # --- GUI構築 ---
 # --- テーマ判定 ---
@@ -956,6 +1125,7 @@ if ($isLight) {
     $cPresetHint = [System.Drawing.Color]::FromArgb(180, 80, 0)
     $cNote = [System.Drawing.Color]::FromArgb(80, 80, 80)
     $cMicName = [System.Drawing.Color]::FromArgb(60, 60, 60)
+    $cMeterBg = [System.Drawing.Color]::FromArgb(215, 215, 215)
 } else {
     $cFormBg = [System.Drawing.Color]::FromArgb(28, 28, 30)
     $cFormFg = [System.Drawing.Color]::White
@@ -975,6 +1145,7 @@ if ($isLight) {
     $cPresetHint = [System.Drawing.Color]::FromArgb(255, 220, 120)
     $cNote = [System.Drawing.Color]::FromArgb(150, 150, 150)
     $cMicName = [System.Drawing.Color]::FromArgb(200, 200, 200)
+    $cMeterBg = [System.Drawing.Color]::FromArgb(45, 45, 50)
 }
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "LogVolume - 対数音量ミキサー"
@@ -1026,6 +1197,12 @@ $trackMaster.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackMaster.Maximum = 0    # 0 dB
 $trackMaster.TickFrequency = 10
 $grpMaster.Controls.Add($trackMaster)
+
+$meterMaster = New-Object LogVolumeApp.AudioMeterBar
+$meterMaster.Location = New-Object System.Drawing.Point(18, 98)
+$meterMaster.Size = New-Object System.Drawing.Size(430, 6)
+$meterMaster.BgColor = $cMeterBg
+$grpMaster.Controls.Add($meterMaster)
 
 # マスタープリセット
 $pnlMasterPresets = New-Object System.Windows.Forms.Panel
@@ -1115,6 +1292,12 @@ $trackApp.Maximum = 0    # 0 dB
 $trackApp.TickFrequency = 10
 $grpApp.Controls.Add($trackApp)
 
+$meterApp = New-Object LogVolumeApp.AudioMeterBar
+$meterApp.Location = New-Object System.Drawing.Point(18, 127)
+$meterApp.Size = New-Object System.Drawing.Size(430, 6)
+$meterApp.BgColor = $cMeterBg
+$grpApp.Controls.Add($meterApp)
+
 # アプリ微小音量プリセット
 $lblPresetHint = New-Object System.Windows.Forms.Label
 $lblPresetHint.Text = "★ 微小音量プリセット (Windows標準の1%以下の世界):"
@@ -1202,6 +1385,12 @@ $trackMic.Maximum = 100 # 100 %
 $trackMic.TickFrequency = 10
 $grpMic.Controls.Add($trackMic)
 
+$meterMic = New-Object LogVolumeApp.AudioMeterBar
+$meterMic.Location = New-Object System.Drawing.Point(18, 107)
+$meterMic.Size = New-Object System.Drawing.Size(430, 6)
+$meterMic.BgColor = $cMeterBg
+$grpMic.Controls.Add($meterMic)
+
 # マイクプリセット
 $pnlMicPresets = New-Object System.Windows.Forms.Panel
 $pnlMicPresets.Location = New-Object System.Drawing.Point(10, 116)
@@ -1275,6 +1464,12 @@ $trackSidetone.Minimum = -120
 $trackSidetone.Maximum = 0
 $trackSidetone.TickFrequency = 10
 $grpSidetone.Controls.Add($trackSidetone)
+
+$meterSidetone = New-Object LogVolumeApp.AudioMeterBar
+$meterSidetone.Location = New-Object System.Drawing.Point(18, 107)
+$meterSidetone.Size = New-Object System.Drawing.Size(430, 6)
+$meterSidetone.BgColor = $cMeterBg
+$grpSidetone.Controls.Add($meterSidetone)
 
 $pnlSidetonePresets = New-Object System.Windows.Forms.Panel
 $pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 115)
@@ -1619,9 +1814,38 @@ $timerSync.Add_Tick({
 })
 $timerSync.Start()
 
+# ==========================================
+# 音声レベルメーター定期更新タイマー (約 30 FPS)
+# ==========================================
+$timerMeter = New-Object System.Windows.Forms.Timer
+$timerMeter.Interval = 35
+$timerMeter.Add_Tick({
+    $pMaster = [LogVolumeApp.CoreAudio]::GetMasterPeak()
+    $meterMaster.SetPeakWithDecay($pMaster)
+    $meterMaster.Invalidate()
+
+    $sel = $cmbApps.SelectedItem
+    $targetPid = if ($sel -ne $null) { $sel.ProcessId } else { -1 }
+    $pApp = [LogVolumeApp.CoreAudio]::GetSessionPeak($targetPid)
+    $meterApp.SetPeakWithDecay($pApp)
+    $meterApp.Invalidate()
+
+    $pMic = [LogVolumeApp.CoreAudio]::GetMicPeak()
+    $meterMic.SetPeakWithDecay($pMic)
+    $meterMic.Invalidate()
+
+    if ($meterSidetone -ne $null) {
+        $meterSidetone.SetPeakWithDecay($pMic)
+        $meterSidetone.Invalidate()
+    }
+})
+$timerMeter.Start()
+
 $form.Add_FormClosing({
     $timerSync.Stop()
     $timerSync.Dispose()
+    $timerMeter.Stop()
+    $timerMeter.Dispose()
 })
 
 # 初期化
