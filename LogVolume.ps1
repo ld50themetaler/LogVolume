@@ -98,9 +98,11 @@ namespace LogVolumeApp {
             this.RedColor = Color.FromArgb(230, 50, 50);
             this.TextColor = Color.FromArgb(160, 160, 160);
             this.TickColor = Color.FromArgb(90, 90, 90);
+            this.IsDbScale = false;
         }
         private float currentPeak = 0f;
         public float Peak { get; set; }
+        public bool IsDbScale { get; set; }
         public Color BgColor { get; set; }
         public Color GreenColor { get; set; }
         public Color YellowColor { get; set; }
@@ -113,7 +115,7 @@ namespace LogVolumeApp {
                 currentPeak = newPeak;
             } else {
                 currentPeak = currentPeak * 0.82f;
-                if (currentPeak < 0.001f) currentPeak = 0f;
+                if (currentPeak < 0.0001f) currentPeak = 0f;
             }
             this.Peak = currentPeak;
         }
@@ -132,11 +134,25 @@ namespace LogVolumeApp {
                 g.FillRectangle(br, 0, 0, w, barH);
             }
 
+            // Calculate display ratio (0.0 to 1.0)
+            float displayRatio = 0f;
+            if (IsDbScale) {
+                if (Peak > 0.00001f) {
+                    float db = (float)(20.0 * Math.Log10(Peak));
+                    if (db < -60.0f) db = -60.0f;
+                    if (db > 0.0f) db = 0.0f;
+                    displayRatio = (db + 60.0f) / 60.0f;
+                } else {
+                    displayRatio = 0f;
+                }
+            } else {
+                displayRatio = Peak > 1f ? 1f : (Peak < 0f ? 0f : Peak);
+            }
+
             // Draw segmented LED meter (36 segments)
             int numSegments = 36;
             float segW = (float)w / numSegments;
-            float p = Peak > 1f ? 1f : Peak;
-            int activeSegs = (int)Math.Round(p * numSegments);
+            int activeSegs = (int)Math.Round(displayRatio * numSegments);
 
             for (int i = 0; i < numSegments; i++) {
                 int x = (int)(i * segW);
@@ -144,10 +160,16 @@ namespace LogVolumeApp {
                 if (segWidth < 1) segWidth = 1;
 
                 Color c;
-                float ratio = (float)i / numSegments;
-                if (ratio < 0.70f) c = GreenColor;
-                else if (ratio < 0.88f) c = YellowColor;
-                else c = RedColor;
+                float segRatio = (float)i / numSegments;
+                if (IsDbScale) {
+                    if (segRatio < 0.833f) c = GreenColor;
+                    else if (segRatio < 0.950f) c = YellowColor;
+                    else c = RedColor;
+                } else {
+                    if (segRatio < 0.70f) c = GreenColor;
+                    else if (segRatio < 0.88f) c = YellowColor;
+                    else c = RedColor;
+                }
 
                 if (i < activeSegs) {
                     using (var br = new SolidBrush(c)) {
@@ -164,27 +186,54 @@ namespace LogVolumeApp {
             using (var pen = new Pen(TickColor))
             using (var font = new Font("Meiryo UI", 7.0f))
             using (var textBr = new SolidBrush(TextColor)) {
-                float[] marks = new float[] { 0.0f, 0.25f, 0.50f, 0.75f, 1.0f };
-                string[] labels = new string[] { "0%", "25%", "50%", "75%", "100% (0dB)" };
+                if (IsDbScale) {
+                    float[] dbValues = new float[] { -60f, -40f, -30f, -20f, -10f, 0f };
+                    string[] dbLabels = new string[] { "-60", "-40", "-30", "-20", "-10", "0 dB" };
 
-                for (int m = 0; m < marks.Length; m++) {
-                    int tx = (int)(marks[m] * (w - 1));
-                    g.DrawLine(pen, tx, barH, tx, barH + 3);
+                    for (int m = 0; m < dbValues.Length; m++) {
+                        float markRatio = (dbValues[m] + 60f) / 60f;
+                        int tx = (int)(markRatio * (w - 1));
+                        g.DrawLine(pen, tx, barH, tx, barH + 3);
 
-                    string lbl = labels[m];
-                    SizeF sz = g.MeasureString(lbl, font);
-                    float lx = tx - (sz.Width / 2f);
-                    if (m == 0) lx = 0;
-                    else if (m == marks.Length - 1) lx = w - sz.Width;
+                        string lbl = dbLabels[m];
+                        SizeF sz = g.MeasureString(lbl, font);
+                        float lx = tx - (sz.Width / 2f);
+                        if (m == 0) lx = 0;
+                        else if (m == dbValues.Length - 1) lx = w - sz.Width;
 
-                    g.DrawString(lbl, font, textBr, lx, barH + 3);
-                }
+                        g.DrawString(lbl, font, textBr, lx, barH + 3);
+                    }
 
-                // Minor ticks at 10% steps
-                for (int step = 1; step < 10; step++) {
-                    if (step == 5) continue;
-                    int mx = (int)((step / 10f) * (w - 1));
-                    g.DrawLine(pen, mx, barH, mx, barH + 2);
+                    // Minor ticks every 5 dB: -55, -50, -45, -35, -25, -15, -5 dB
+                    float[] minorDbs = new float[] { -55f, -50f, -45f, -35f, -25f, -15f, -5f };
+                    for (int k = 0; k < minorDbs.Length; k++) {
+                        float mRatio = (minorDbs[k] + 60f) / 60f;
+                        int mx = (int)(mRatio * (w - 1));
+                        g.DrawLine(pen, mx, barH, mx, barH + 2);
+                    }
+                } else {
+                    float[] marks = new float[] { 0.0f, 0.25f, 0.50f, 0.75f, 1.0f };
+                    string[] labels = new string[] { "0%", "25%", "50%", "75%", "100%" };
+
+                    for (int m = 0; m < marks.Length; m++) {
+                        int tx = (int)(marks[m] * (w - 1));
+                        g.DrawLine(pen, tx, barH, tx, barH + 3);
+
+                        string lbl = labels[m];
+                        SizeF sz = g.MeasureString(lbl, font);
+                        float lx = tx - (sz.Width / 2f);
+                        if (m == 0) lx = 0;
+                        else if (m == marks.Length - 1) lx = w - sz.Width;
+
+                        g.DrawString(lbl, font, textBr, lx, barH + 3);
+                    }
+
+                    // Minor ticks at 10% steps
+                    for (int step = 1; step < 10; step++) {
+                        if (step == 5) continue;
+                        int mx = (int)((step / 10f) * (w - 1));
+                        g.DrawLine(pen, mx, barH, mx, barH + 2);
+                    }
                 }
             }
         }
@@ -1078,9 +1127,6 @@ namespace LogVolumeApp {
         }
 
         public static float GetSessionPeak(int targetPid) {
-            if (targetPid == -1) {
-                return GetMasterPeak();
-            }
             IMMDeviceEnumerator enumerator = null;
             IMMDevice dev = null;
             IAudioSessionManager2 mgr = null;
@@ -1099,6 +1145,7 @@ namespace LogVolumeApp {
 
                 int count;
                 sessionEnum.GetCount(out count);
+                float maxPeak = 0f;
                 for (int i = 0; i < count; i++) {
                     IAudioSessionControl2 ctl = null;
                     try {
@@ -1107,7 +1154,16 @@ namespace LogVolumeApp {
 
                         int pid = 0;
                         ctl.GetProcessId(out pid);
-                        if (pid == targetPid) {
+                        if (targetPid == -1) {
+                            if (pid != 0) {
+                                var meter = ctl as IAudioMeterInformation;
+                                if (meter != null) {
+                                    float peak = 0f;
+                                    meter.GetPeakValue(out peak);
+                                    if (peak > maxPeak) maxPeak = peak;
+                                }
+                            }
+                        } else if (pid == targetPid) {
                             var meter = ctl as IAudioMeterInformation;
                             if (meter != null) {
                                 float peak = 0f;
@@ -1119,7 +1175,7 @@ namespace LogVolumeApp {
                         if (ctl != null) Marshal.ReleaseComObject(ctl);
                     }
                 }
-                return 0f;
+                return (targetPid == -1) ? maxPeak : 0f;
             } catch { return 0f; }
             finally {
                 if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
@@ -1247,6 +1303,7 @@ $meterMaster.Size = New-Object System.Drawing.Size(430, 20)
 $meterMaster.BgColor = $cMeterBg
 $meterMaster.TextColor = $cMeterText
 $meterMaster.TickColor = $cMeterTick
+$meterMaster.IsDbScale = $true
 $grpMaster.Controls.Add($meterMaster)
 
 # マスタープリセット
@@ -1343,6 +1400,7 @@ $meterApp.Size = New-Object System.Drawing.Size(430, 20)
 $meterApp.BgColor = $cMeterBg
 $meterApp.TextColor = $cMeterText
 $meterApp.TickColor = $cMeterTick
+$meterApp.IsDbScale = $true
 $grpApp.Controls.Add($meterApp)
 
 # アプリ微小音量プリセット
@@ -1473,7 +1531,7 @@ $grpMic.Controls.Add($pnlMicPresets)
 $form.Controls.Add($grpMic)
 
 # フォームのクライアントサイズを底辺マージン15pxに合わせて設定（下の無駄なスペースを完全解消）
-$form.ClientSize = New-Object System.Drawing.Size(495, 885)
+$form.ClientSize = New-Object System.Drawing.Size(495, 868)
 
 # ==========================================
 # 4. ダイレクトモニタリング (Earthworks Icon)
@@ -1481,7 +1539,7 @@ $form.ClientSize = New-Object System.Drawing.Size(495, 885)
 $grpSidetone = New-Object System.Windows.Forms.GroupBox
 $grpSidetone.Text = " 4. ダイレクトモニタリング (Earthworks Icon) "
 $grpSidetone.Location = New-Object System.Drawing.Point(15, 692)
-$grpSidetone.Size = New-Object System.Drawing.Size(465, 175)
+$grpSidetone.Size = New-Object System.Drawing.Size(465, 158)
 $grpSidetone.ForeColor = $cGrpMic
 
 $lblSidetoneName = New-Object System.Windows.Forms.Label
@@ -1507,23 +1565,15 @@ $btnSidetoneMute.ForeColor = $cBtnFg
 $grpSidetone.Controls.Add($btnSidetoneMute)
 
 $trackSidetone = New-Object System.Windows.Forms.TrackBar
-$trackSidetone.Location = New-Object System.Drawing.Point(10, 60)
+$trackSidetone.Location = New-Object System.Drawing.Point(10, 62)
 $trackSidetone.Size = New-Object System.Drawing.Size(445, 42)
 $trackSidetone.Minimum = -120
 $trackSidetone.Maximum = 0
 $trackSidetone.TickFrequency = 10
 $grpSidetone.Controls.Add($trackSidetone)
 
-$meterSidetone = New-Object LogVolumeApp.AudioMeterBar
-$meterSidetone.Location = New-Object System.Drawing.Point(18, 102)
-$meterSidetone.Size = New-Object System.Drawing.Size(430, 20)
-$meterSidetone.BgColor = $cMeterBg
-$meterSidetone.TextColor = $cMeterText
-$meterSidetone.TickColor = $cMeterTick
-$grpSidetone.Controls.Add($meterSidetone)
-
 $pnlSidetonePresets = New-Object System.Windows.Forms.Panel
-$pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 125)
+$pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 108)
 $pnlSidetonePresets.Size = New-Object System.Drawing.Size(445, 42)
 
 $sidetonePresets = @(
@@ -1884,11 +1934,6 @@ $timerMeter.Add_Tick({
     $pMic = [LogVolumeApp.CoreAudio]::GetMicPeak()
     $meterMic.SetPeakWithDecay($pMic)
     $meterMic.Invalidate()
-
-    if ($meterSidetone -ne $null) {
-        $meterSidetone.SetPeakWithDecay($pMic)
-        $meterSidetone.Invalidate()
-    }
 })
 $timerMeter.Start()
 
