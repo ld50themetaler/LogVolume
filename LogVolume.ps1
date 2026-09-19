@@ -96,6 +96,8 @@ namespace LogVolumeApp {
             this.GreenColor = Color.FromArgb(40, 180, 80);
             this.YellowColor = Color.FromArgb(230, 180, 20);
             this.RedColor = Color.FromArgb(230, 50, 50);
+            this.TextColor = Color.FromArgb(160, 160, 160);
+            this.TickColor = Color.FromArgb(90, 90, 90);
         }
         private float currentPeak = 0f;
         public float Peak { get; set; }
@@ -103,6 +105,8 @@ namespace LogVolumeApp {
         public Color GreenColor { get; set; }
         public Color YellowColor { get; set; }
         public Color RedColor { get; set; }
+        public Color TextColor { get; set; }
+        public Color TickColor { get; set; }
 
         public void SetPeakWithDecay(float newPeak) {
             if (newPeak >= currentPeak) {
@@ -117,35 +121,70 @@ namespace LogVolumeApp {
         protected override void OnPaint(PaintEventArgs e) {
             base.OnPaint(e);
             var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
             int w = this.Width;
-            int h = this.Height;
+            int barH = 6; // LED meter bar height
+
+            // Draw meter trough background
             using (var br = new SolidBrush(BgColor)) {
-                g.FillRectangle(br, 0, 0, w, h);
+                g.FillRectangle(br, 0, 0, w, barH);
             }
-            if (Peak <= 0.0001f) return;
+
+            // Draw segmented LED meter (36 segments)
+            int numSegments = 36;
+            float segW = (float)w / numSegments;
             float p = Peak > 1f ? 1f : Peak;
-            int barW = (int)(w * p);
-            if (barW <= 0) return;
+            int activeSegs = (int)Math.Round(p * numSegments);
 
-            int greenEnd = (int)(w * 0.70f);
-            int yellowEnd = (int)(w * 0.90f);
+            for (int i = 0; i < numSegments; i++) {
+                int x = (int)(i * segW);
+                int segWidth = (int)((i + 1) * segW) - x - 1; // 1px separator
+                if (segWidth < 1) segWidth = 1;
 
-            int drawG = Math.Min(barW, greenEnd);
-            if (drawG > 0) {
-                using (var br = new SolidBrush(GreenColor)) {
-                    g.FillRectangle(br, 0, 0, drawG, h);
+                Color c;
+                float ratio = (float)i / numSegments;
+                if (ratio < 0.70f) c = GreenColor;
+                else if (ratio < 0.88f) c = YellowColor;
+                else c = RedColor;
+
+                if (i < activeSegs) {
+                    using (var br = new SolidBrush(c)) {
+                        g.FillRectangle(br, x, 0, segWidth, barH);
+                    }
+                } else {
+                    using (var br = new SolidBrush(Color.FromArgb(28, c))) {
+                        g.FillRectangle(br, x, 0, segWidth, barH);
+                    }
                 }
             }
-            if (barW > greenEnd) {
-                int drawY = Math.Min(barW, yellowEnd) - greenEnd;
-                using (var br = new SolidBrush(YellowColor)) {
-                    g.FillRectangle(br, greenEnd, 0, drawY, h);
+
+            // Draw scale ticks & labels below the bar
+            using (var pen = new Pen(TickColor))
+            using (var font = new Font("Meiryo UI", 7.0f))
+            using (var textBr = new SolidBrush(TextColor)) {
+                float[] marks = new float[] { 0.0f, 0.25f, 0.50f, 0.75f, 1.0f };
+                string[] labels = new string[] { "0%", "25%", "50%", "75%", "100% (0dB)" };
+
+                for (int m = 0; m < marks.Length; m++) {
+                    int tx = (int)(marks[m] * (w - 1));
+                    g.DrawLine(pen, tx, barH, tx, barH + 3);
+
+                    string lbl = labels[m];
+                    SizeF sz = g.MeasureString(lbl, font);
+                    float lx = tx - (sz.Width / 2f);
+                    if (m == 0) lx = 0;
+                    else if (m == marks.Length - 1) lx = w - sz.Width;
+
+                    g.DrawString(lbl, font, textBr, lx, barH + 3);
                 }
-            }
-            if (barW > yellowEnd) {
-                int drawR = barW - yellowEnd;
-                using (var br = new SolidBrush(RedColor)) {
-                    g.FillRectangle(br, yellowEnd, 0, drawR, h);
+
+                // Minor ticks at 10% steps
+                for (int step = 1; step < 10; step++) {
+                    if (step == 5) continue;
+                    int mx = (int)((step / 10f) * (w - 1));
+                    g.DrawLine(pen, mx, barH, mx, barH + 2);
                 }
             }
         }
@@ -1126,6 +1165,8 @@ if ($isLight) {
     $cNote = [System.Drawing.Color]::FromArgb(80, 80, 80)
     $cMicName = [System.Drawing.Color]::FromArgb(60, 60, 60)
     $cMeterBg = [System.Drawing.Color]::FromArgb(215, 215, 215)
+    $cMeterText = [System.Drawing.Color]::FromArgb(110, 110, 110)
+    $cMeterTick = [System.Drawing.Color]::FromArgb(160, 160, 160)
 } else {
     $cFormBg = [System.Drawing.Color]::FromArgb(28, 28, 30)
     $cFormFg = [System.Drawing.Color]::White
@@ -1146,6 +1187,8 @@ if ($isLight) {
     $cNote = [System.Drawing.Color]::FromArgb(150, 150, 150)
     $cMicName = [System.Drawing.Color]::FromArgb(200, 200, 200)
     $cMeterBg = [System.Drawing.Color]::FromArgb(45, 45, 50)
+    $cMeterText = [System.Drawing.Color]::FromArgb(160, 160, 160)
+    $cMeterTick = [System.Drawing.Color]::FromArgb(90, 90, 90)
 }
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "LogVolume - 対数音量ミキサー"
@@ -1191,23 +1234,25 @@ $btnMasterMute.ForeColor = $cBtnFg
 $grpMaster.Controls.Add($btnMasterMute)
 
 $trackMaster = New-Object System.Windows.Forms.TrackBar
-$trackMaster.Location = New-Object System.Drawing.Point(10, 54)
-$trackMaster.Size = New-Object System.Drawing.Size(445, 45)
+$trackMaster.Location = New-Object System.Drawing.Point(10, 50)
+$trackMaster.Size = New-Object System.Drawing.Size(445, 42)
 $trackMaster.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackMaster.Maximum = 0    # 0 dB
 $trackMaster.TickFrequency = 10
 $grpMaster.Controls.Add($trackMaster)
 
 $meterMaster = New-Object LogVolumeApp.AudioMeterBar
-$meterMaster.Location = New-Object System.Drawing.Point(18, 98)
-$meterMaster.Size = New-Object System.Drawing.Size(430, 6)
+$meterMaster.Location = New-Object System.Drawing.Point(18, 94)
+$meterMaster.Size = New-Object System.Drawing.Size(430, 20)
 $meterMaster.BgColor = $cMeterBg
+$meterMaster.TextColor = $cMeterText
+$meterMaster.TickColor = $cMeterTick
 $grpMaster.Controls.Add($meterMaster)
 
 # マスタープリセット
 $pnlMasterPresets = New-Object System.Windows.Forms.Panel
-$pnlMasterPresets.Location = New-Object System.Drawing.Point(10, 110)
-$pnlMasterPresets.Size = New-Object System.Drawing.Size(445, 52)
+$pnlMasterPresets.Location = New-Object System.Drawing.Point(10, 120)
+$pnlMasterPresets.Size = New-Object System.Drawing.Size(445, 46)
 
 $masterPresets = @(
     @{ Text = "-40 dB (1%)";   Db = -40.0 },
@@ -1278,37 +1323,39 @@ $btnRefresh.ForeColor = $cBtnFg
 $grpApp.Controls.Add($btnRefresh)
 
 $lblAppVal = New-Object System.Windows.Forms.Label
-$lblAppVal.Location = New-Object System.Drawing.Point(15, 56)
-$lblAppVal.Size = New-Object System.Drawing.Size(435, 24)
+$lblAppVal.Location = New-Object System.Drawing.Point(15, 52)
+$lblAppVal.Size = New-Object System.Drawing.Size(435, 22)
 $lblAppVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblAppVal.ForeColor = $cFormFg
 $grpApp.Controls.Add($lblAppVal)
 
 $trackApp = New-Object System.Windows.Forms.TrackBar
-$trackApp.Location = New-Object System.Drawing.Point(10, 84)
-$trackApp.Size = New-Object System.Drawing.Size(445, 45)
+$trackApp.Location = New-Object System.Drawing.Point(10, 74)
+$trackApp.Size = New-Object System.Drawing.Size(445, 40)
 $trackApp.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackApp.Maximum = 0    # 0 dB
 $trackApp.TickFrequency = 10
 $grpApp.Controls.Add($trackApp)
 
 $meterApp = New-Object LogVolumeApp.AudioMeterBar
-$meterApp.Location = New-Object System.Drawing.Point(18, 127)
-$meterApp.Size = New-Object System.Drawing.Size(430, 6)
+$meterApp.Location = New-Object System.Drawing.Point(18, 114)
+$meterApp.Size = New-Object System.Drawing.Size(430, 20)
 $meterApp.BgColor = $cMeterBg
+$meterApp.TextColor = $cMeterText
+$meterApp.TickColor = $cMeterTick
 $grpApp.Controls.Add($meterApp)
 
 # アプリ微小音量プリセット
 $lblPresetHint = New-Object System.Windows.Forms.Label
 $lblPresetHint.Text = "★ 微小音量プリセット (Windows標準の1%以下の世界):"
-$lblPresetHint.Location = New-Object System.Drawing.Point(15, 134)
-$lblPresetHint.Size = New-Object System.Drawing.Size(435, 20)
+$lblPresetHint.Location = New-Object System.Drawing.Point(15, 138)
+$lblPresetHint.Size = New-Object System.Drawing.Size(435, 18)
 $lblPresetHint.ForeColor = $cPresetHint
 $grpApp.Controls.Add($lblPresetHint)
 
 $pnlAppPresets = New-Object System.Windows.Forms.Panel
-$pnlAppPresets.Location = New-Object System.Drawing.Point(10, 156)
-$pnlAppPresets.Size = New-Object System.Drawing.Size(445, 48)
+$pnlAppPresets.Location = New-Object System.Drawing.Point(10, 158)
+$pnlAppPresets.Size = New-Object System.Drawing.Size(445, 44)
 
 $appPresets = @(
     @{ Text = "-60dB (0.1%)";  Db = -60.0 },
@@ -1378,23 +1425,25 @@ $btnMicMute.ForeColor = $cBtnFg
 $grpMic.Controls.Add($btnMicMute)
 
 $trackMic = New-Object System.Windows.Forms.TrackBar
-$trackMic.Location = New-Object System.Drawing.Point(10, 66)
-$trackMic.Size = New-Object System.Drawing.Size(445, 45)
+$trackMic.Location = New-Object System.Drawing.Point(10, 60)
+$trackMic.Size = New-Object System.Drawing.Size(445, 42)
 $trackMic.Minimum = 0   # 0 %
 $trackMic.Maximum = 100 # 100 %
 $trackMic.TickFrequency = 10
 $grpMic.Controls.Add($trackMic)
 
 $meterMic = New-Object LogVolumeApp.AudioMeterBar
-$meterMic.Location = New-Object System.Drawing.Point(18, 107)
-$meterMic.Size = New-Object System.Drawing.Size(430, 6)
+$meterMic.Location = New-Object System.Drawing.Point(18, 102)
+$meterMic.Size = New-Object System.Drawing.Size(430, 20)
 $meterMic.BgColor = $cMeterBg
+$meterMic.TextColor = $cMeterText
+$meterMic.TickColor = $cMeterTick
 $grpMic.Controls.Add($meterMic)
 
 # マイクプリセット
 $pnlMicPresets = New-Object System.Windows.Forms.Panel
-$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 116)
-$pnlMicPresets.Size = New-Object System.Drawing.Size(445, 48)
+$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 125)
+$pnlMicPresets.Size = New-Object System.Drawing.Size(445, 42)
 
 $micPresets = @(
     @{ Text = "0% (消音)"; Scalar = 0.00 },
@@ -1458,21 +1507,23 @@ $btnSidetoneMute.ForeColor = $cBtnFg
 $grpSidetone.Controls.Add($btnSidetoneMute)
 
 $trackSidetone = New-Object System.Windows.Forms.TrackBar
-$trackSidetone.Location = New-Object System.Drawing.Point(10, 68)
-$trackSidetone.Size = New-Object System.Drawing.Size(445, 45)
+$trackSidetone.Location = New-Object System.Drawing.Point(10, 60)
+$trackSidetone.Size = New-Object System.Drawing.Size(445, 42)
 $trackSidetone.Minimum = -120
 $trackSidetone.Maximum = 0
 $trackSidetone.TickFrequency = 10
 $grpSidetone.Controls.Add($trackSidetone)
 
 $meterSidetone = New-Object LogVolumeApp.AudioMeterBar
-$meterSidetone.Location = New-Object System.Drawing.Point(18, 107)
-$meterSidetone.Size = New-Object System.Drawing.Size(430, 6)
+$meterSidetone.Location = New-Object System.Drawing.Point(18, 102)
+$meterSidetone.Size = New-Object System.Drawing.Size(430, 20)
 $meterSidetone.BgColor = $cMeterBg
+$meterSidetone.TextColor = $cMeterText
+$meterSidetone.TickColor = $cMeterTick
 $grpSidetone.Controls.Add($meterSidetone)
 
 $pnlSidetonePresets = New-Object System.Windows.Forms.Panel
-$pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 115)
+$pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 125)
 $pnlSidetonePresets.Size = New-Object System.Drawing.Size(445, 42)
 
 $sidetonePresets = @(
