@@ -1029,6 +1029,44 @@ namespace LogVolumeApp {
             return null;
         }
 
+        public static string GetSidetoneDeviceName() {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDeviceCollection col = null;
+            try {
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator.EnumAudioEndpoints(0, 1, out col);
+                uint count = 0;
+                if (col != null) col.GetCount(out count);
+                for (uint i = 0; i < count; i++) {
+                    IMMDevice dev = null;
+                    col.Item(i, out dev);
+                    if (dev == null) continue;
+
+                    string name = "";
+                    IPropertyStore store = null;
+                    dev.OpenPropertyStore(0, out store);
+                    if (store != null) {
+                        PropertyKey key = new PropertyKey(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
+                        PropVariant pv = new PropVariant();
+                        store.GetValue(ref key, out pv);
+                        name = Marshal.PtrToStringUni(pv.pwszVal) ?? "";
+                        Marshal.ReleaseComObject(store);
+                    }
+
+                    if (name.IndexOf("USB audio CODEC", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        Marshal.ReleaseComObject(dev);
+                        return name;
+                    }
+                    Marshal.ReleaseComObject(dev);
+                }
+            } catch {}
+            finally {
+                if (col != null) Marshal.ReleaseComObject(col);
+                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+            }
+            return "";
+        }
+
         public static float GetSidetoneVolume() {
             IPart part = GetSidetonePart(131074);
             if (part != null) {
@@ -1591,10 +1629,10 @@ $form.Controls.Add($grpMic)
 $form.ClientSize = New-Object System.Drawing.Size(495, 822)
 
 # ==========================================
-# 4. ダイレクトモニタリング (Earthworks Icon)
+# 4. サイドトーン (ダイレクトモニタリング)
 # ==========================================
 $grpSidetone = New-Object System.Windows.Forms.GroupBox
-$grpSidetone.Text = " 4. ダイレクトモニタリング (Earthworks Icon) "
+$grpSidetone.Text = " 4. サイドトーン (ダイレクトモニタリング) "
 $grpSidetone.Location = New-Object System.Drawing.Point(15, 649)
 $grpSidetone.Size = New-Object System.Drawing.Size(465, 158)
 $grpSidetone.ForeColor = $cGrpMic
@@ -1732,7 +1770,7 @@ function UpdateAppMuteButton($mute) {
 
 function UpdateSidetoneUI {
     if (-not [LogVolumeApp.CoreAudio]::IsSidetoneAvailable()) {
-        $lblSidetoneName.Text = "デバイス: 未検出 (Earthworks Icon非接続)"
+        $lblSidetoneName.Text = "デバイス: 未検出 (サイドトーン非対応/未接続)"
         $lblSidetoneVal.Text = "現在: --"
         $trackSidetone.Enabled = $false
         $btnSidetoneMute.Enabled = $false
@@ -1740,7 +1778,9 @@ function UpdateSidetoneUI {
         return
     }
 
-    $lblSidetoneName.Text = "デバイス: Earthworks Icon (マイクモニター)"
+    $devName = [LogVolumeApp.CoreAudio]::GetSidetoneDeviceName()
+    if ([string]::IsNullOrWhiteSpace($devName)) { $devName = "USB audio CODEC" }
+    $lblSidetoneName.Text = "デバイス: {0}" -f $devName
     $trackSidetone.Enabled = $true
     $btnSidetoneMute.Enabled = $true
     $pnlSidetonePresets.Enabled = $true
