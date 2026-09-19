@@ -743,6 +743,128 @@ namespace LogVolumeApp {
                 if (enumerator != null) Marshal.ReleaseComObject(enumerator);
             }
         }
+
+        [Guid("2A07407E-6497-4A18-9787-32F79BD0D98F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        public interface IDeviceTopology {
+            [PreserveSig] int GetConnectorCount(out uint count);
+            [PreserveSig] int GetConnector(uint index, out IntPtr connector);
+            [PreserveSig] int GetSubunitCount(out uint count);
+            [PreserveSig] int GetSubunit(uint index, out IntPtr subunit);
+            [PreserveSig] int GetPartById(uint localId, out IPart part);
+        }
+
+        [Guid("AE2DE0E4-5BCA-4F2D-AA46-5D13F8FDB3A9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        public interface IPart {
+            [PreserveSig] int GetName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+            [PreserveSig] int GetLocalId(out uint id);
+            [PreserveSig] int GetGlobalId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+            [PreserveSig] int GetPartType(out int partType);
+            [PreserveSig] int GetSubType(out Guid subType);
+            [PreserveSig] int GetControlInterfaceCount(out uint count);
+            [PreserveSig] int GetControlInterface(uint index, out IntPtr controlInterface);
+            [PreserveSig] int EnumPartsIncoming(out IntPtr parts);
+            [PreserveSig] int EnumPartsOutgoing(out IntPtr parts);
+            [PreserveSig] int GetTopologyObject(out IDeviceTopology topology);
+            [PreserveSig] int Activate(int clsCtx, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object interfacePointer);
+        }
+
+        public static IPart GetSidetonePart(uint id) {
+            IMMDeviceEnumerator enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+            IMMDeviceCollection col = null;
+            enumerator.EnumAudioEndpoints(0, 1, out col);
+            uint count = 0;
+            if (col != null) col.GetCount(out count);
+            for(uint i=0; i<count; i++) {
+                IMMDevice dev = null;
+                col.Item(i, out dev);
+                string name = "";
+                IPropertyStore store = null;
+                dev.OpenPropertyStore(0, out store);
+                if (store != null) {
+                    PropertyKey key = new PropertyKey(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
+                    PropVariant pv = new PropVariant();
+                    store.GetValue(ref key, out pv);
+                    name = Marshal.PtrToStringUni(pv.pwszVal) ?? "";
+                    Marshal.ReleaseComObject(store);
+                }
+                if (name == "スピーカー (USB audio CODEC)") {
+                    Guid iidTopo = typeof(IDeviceTopology).GUID;
+                    object objTopo = null;
+                    dev.Activate(ref iidTopo, 1, IntPtr.Zero, out objTopo);
+                    var topo = objTopo as IDeviceTopology;
+                    if (topo != null) {
+                        IPart part = null;
+                        topo.GetPartById(id, out part);
+                        return part;
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static float GetSidetoneVolume() {
+            IPart part = GetSidetonePart(131074);
+            if (part != null) {
+                Guid iidVol = typeof(IAudioVolumeLevel).GUID;
+                object objVol = null;
+                part.Activate(1, ref iidVol, out objVol);
+                var vol = objVol as IAudioVolumeLevel;
+                if (vol != null) {
+                    float level = 0;
+                    vol.GetLevel(0, out level);
+                    return level;
+                }
+            }
+            return -1000f; // invalid
+        }
+        
+        public static void SetSidetoneVolume(float level) {
+            IPart part = GetSidetonePart(131074);
+            if (part != null) {
+                Guid iidVol = typeof(IAudioVolumeLevel).GUID;
+                object objVol = null;
+                part.Activate(1, ref iidVol, out objVol);
+                var vol = objVol as IAudioVolumeLevel;
+                if (vol != null) {
+                    Guid ctx = Guid.Empty;
+                    vol.SetLevel(0, level, ref ctx);
+                }
+            }
+        }
+
+        public static bool GetSidetoneMute() {
+            IPart part = GetSidetonePart(131073);
+            if (part != null) {
+                Guid iidMute = typeof(IAudioMute).GUID;
+                object objMute = null;
+                part.Activate(1, ref iidMute, out objMute);
+                var mute = objMute as IAudioMute;
+                if (mute != null) {
+                    bool val = false;
+                    mute.GetMute(out val);
+                    return val;
+                }
+            }
+            return false;
+        }
+        
+        public static void SetSidetoneMute(bool val) {
+            IPart part = GetSidetonePart(131073);
+            if (part != null) {
+                Guid iidMute = typeof(IAudioMute).GUID;
+                object objMute = null;
+                part.Activate(1, ref iidMute, out objMute);
+                var mute = objMute as IAudioMute;
+                if (mute != null) {
+                    Guid ctx = Guid.Empty;
+                    mute.SetMute(val, ref ctx);
+                }
+            }
+        }
+        
+        public static bool IsSidetoneAvailable() {
+            return GetSidetonePart(131074) != null;
+        }
     }
 }
 "@
@@ -1058,7 +1180,89 @@ $grpMic.Controls.Add($pnlMicPresets)
 $form.Controls.Add($grpMic)
 
 # フォームのクライアントサイズを底辺マージン15pxに合わせて設定（下の無駄なスペースを完全解消）
-$form.ClientSize = New-Object System.Drawing.Size(495, 697)
+$form.ClientSize = New-Object System.Drawing.Size(495, 885)
+
+# ==========================================
+# 4. ダイレクトモニタリング (Earthworks Icon)
+# ==========================================
+$grpSidetone = New-Object System.Windows.Forms.GroupBox
+$grpSidetone.Text = " 4. ダイレクトモニタリング (Earthworks Icon) "
+$grpSidetone.Location = New-Object System.Drawing.Point(15, 692)
+$grpSidetone.Size = New-Object System.Drawing.Size(465, 175)
+$grpSidetone.ForeColor = $cGrpMic
+
+$lblSidetoneName = New-Object System.Windows.Forms.Label
+$lblSidetoneName.Location = New-Object System.Drawing.Point(15, 20)
+$lblSidetoneName.Size = New-Object System.Drawing.Size(320, 18)
+$lblSidetoneName.ForeColor = $cMicName
+$lblSidetoneName.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
+$grpSidetone.Controls.Add($lblSidetoneName)
+
+$lblSidetoneVal = New-Object System.Windows.Forms.Label
+$lblSidetoneVal.Location = New-Object System.Drawing.Point(15, 38)
+$lblSidetoneVal.Size = New-Object System.Drawing.Size(320, 24)
+$lblSidetoneVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblSidetoneVal.ForeColor = $cFormFg
+$grpSidetone.Controls.Add($lblSidetoneVal)
+
+$btnSidetoneMute = New-Object System.Windows.Forms.Button
+$btnSidetoneMute.Location = New-Object System.Drawing.Point(345, 22)
+$btnSidetoneMute.Size = New-Object System.Drawing.Size(105, 30)
+$btnSidetoneMute.FlatStyle = "Flat"
+$btnSidetoneMute.BackColor = $cBtnBg
+$btnSidetoneMute.ForeColor = $cBtnFg
+$grpSidetone.Controls.Add($btnSidetoneMute)
+
+$trackSidetone = New-Object System.Windows.Forms.TrackBar
+$trackSidetone.Location = New-Object System.Drawing.Point(10, 68)
+$trackSidetone.Size = New-Object System.Drawing.Size(445, 45)
+$trackSidetone.Minimum = -120
+$trackSidetone.Maximum = 0
+$trackSidetone.TickFrequency = 10
+$grpSidetone.Controls.Add($trackSidetone)
+
+$pnlSidetonePresets = New-Object System.Windows.Forms.Panel
+$pnlSidetonePresets.Location = New-Object System.Drawing.Point(10, 115)
+$pnlSidetonePresets.Size = New-Object System.Drawing.Size(445, 42)
+
+$sidetonePresets = @(
+    @{ Text = "消音";  Db = -120 },
+    @{ Text = "25%"; Db = -12.0 },
+    @{ Text = "50%"; Db = -6.0 },
+    @{ Text = "75%"; Db = -2.5 },
+    @{ Text = "100%";Db = 0.0 }
+)
+$sx = 5
+foreach ($p in $sidetonePresets) {
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = $p.Text
+    $btn.Size = New-Object System.Drawing.Size(85, 34)
+    $btn.Location = New-Object System.Drawing.Point($sx, 4)
+    $btn.FlatStyle = "Flat"
+    $btn.BackColor = $cPresetsMicBg
+    $btn.ForeColor = $cPresetsMicFg
+    $targetDb = $p.Db
+    $btn.Add_Click({
+        [LogVolumeApp.CoreAudio]::SetSidetoneVolume($targetDb)
+        UpdateSidetoneUI
+    }.GetNewClosure())
+    $pnlSidetonePresets.Controls.Add($btn)
+    $sx += 88
+}
+$grpSidetone.Controls.Add($pnlSidetonePresets)
+$form.Controls.Add($grpSidetone)
+
+$trackSidetone.Add_Scroll({
+    $db = $trackSidetone.Value / 2.0
+    [LogVolumeApp.CoreAudio]::SetSidetoneVolume($db)
+    UpdateSidetoneUI
+})
+
+$btnSidetoneMute.Add_Click({
+    $mute = [LogVolumeApp.CoreAudio]::GetSidetoneMute()
+    [LogVolumeApp.CoreAudio]::SetSidetoneMute(-not $mute)
+    UpdateSidetoneUI
+})
 
 # ==========================================
 # UI更新ロジック
@@ -1116,6 +1320,36 @@ function UpdateMicUI {
 function UpdateAppMuteButton($mute) {
     $btnAppMute.Text = if ($mute) { "消音中" } else { "消音" }
     $btnAppMute.BackColor = if ($mute) { $cBtnMuteOn } else { $cBtnBg }
+}
+
+function UpdateSidetoneUI {
+    if (-not [LogVolumeApp.CoreAudio]::IsSidetoneAvailable()) {
+        $lblSidetoneName.Text = "デバイス: 未検出 (Earthworks Icon非接続)"
+        $lblSidetoneVal.Text = "現在: --"
+        $trackSidetone.Enabled = $false
+        $btnSidetoneMute.Enabled = $false
+        $pnlSidetonePresets.Enabled = $false
+        return
+    }
+
+    $lblSidetoneName.Text = "デバイス: Earthworks Icon (マイクモニター)"
+    $trackSidetone.Enabled = $true
+    $btnSidetoneMute.Enabled = $true
+    $pnlSidetonePresets.Enabled = $true
+
+    $db = [LogVolumeApp.CoreAudio]::GetSidetoneVolume()
+    $lblSidetoneVal.Text = "現在: {0} dB" -f [math]::Round($db, 1)
+
+    $val = [int]($db * 2)
+    if ($val -lt -120) { $val = -120 }
+    if ($val -gt 0) { $val = 0 }
+    if ($trackSidetone.Value -ne $val) {
+        $trackSidetone.Value = $val
+    }
+
+    $mute = [LogVolumeApp.CoreAudio]::GetSidetoneMute()
+    $btnSidetoneMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
+    $btnSidetoneMute.BackColor = if ($mute) { $cBtnMuteOn } else { $cBtnBg }
 }
 
 function RefreshAppList {
@@ -1275,6 +1509,7 @@ $timerSync.Add_Tick({
     if ([System.Windows.Forms.Control]::MouseButtons -eq [System.Windows.Forms.MouseButtons]::None) {
         UpdateMasterUI
         UpdateMicUI
+        UpdateSidetoneUI
 
         $sel = $cmbApps.SelectedItem
         if ($sel -ne $null -and $sel.ProcessId -ne -1) {
@@ -1293,6 +1528,7 @@ $form.Add_FormClosing({
 # 初期化
 UpdateMasterUI
 UpdateMicUI
+UpdateSidetoneUI
 RefreshAppList
 
 # フォーム表示
