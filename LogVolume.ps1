@@ -96,7 +96,7 @@ namespace LogVolumeApp {
         [PreserveSig] int GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
         [PreserveSig] int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
         [PreserveSig] int GetProcessId(out int processId);
-        [PreserveSig] int IsSystemSoundsSession();
+        [PreserveSig] int IsSystemSoundsSession([MarshalAs(UnmanagedType.Bool)] out bool isSystemSounds);
         [PreserveSig] int SetDuckingPreference([MarshalAs(UnmanagedType.Bool)] bool optOut);
     }
 
@@ -473,12 +473,13 @@ namespace LogVolumeApp {
 
                         int pid = 0;
                         ctl.GetProcessId(out pid);
-                        int isSys = ctl.IsSystemSoundsSession();
+                        bool isSys;
+                        ctl.IsSystemSoundsSession(out isSys);
 
                         if (seenPids.Contains(pid)) continue;
 
                         string friendlyName = "";
-                        if (isSys == 0 || pid == 0) {
+                        if (isSys || pid == 0) {
                             friendlyName = "システム音 (System Sounds)";
                         } else {
                             try {
@@ -999,35 +1000,33 @@ $lblNote = New-Object System.Windows.Forms.Label
 $lblNote.Text = "※「全アプリ一括適用」を選択した場合、操作した瞬間に全セッションへ反映されます。"
 $lblNote.Location = New-Object System.Drawing.Point(15, 230)
 $lblNote.Size = New-Object System.Drawing.Size(440, 35)
-$lblNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 150)
+$lblNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 150, 150)
 $lblNote.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpApp.Controls.Add($lblNote)
 
 $form.Controls.Add($grpApp)
 
-# --- UI更新ロジック ---
+# --- UI更新 ---
 function UpdateMasterUI {
     $db = [LogVolumeApp.CoreAudio]::GetMasterDb()
     $scalar = [LogVolumeApp.CoreAudio]::GetMasterScalar()
     $pct = [math]::Round($scalar * 100, 1)
-    $lblMasterVal.Text = "マスター音量: $([math]::Round($db, 1)) dB ($pct %)"
+    $lblMasterVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
 
     $val = [int]($db * 2)
     if ($val -lt -120) { $val = -120 }
     if ($val -gt 0) { $val = 0 }
-    if ($trackMaster.Value -ne $val) {
-        $trackMaster.Value = $val
-    }
+    if ($trackMaster.Value -ne $val) { $trackMaster.Value = $val }
 
     $mute = [LogVolumeApp.CoreAudio]::GetMasterMute()
-    $btnMasterMute.Text = if ($mute) { "ミュート中" } else { "消音" }
+    $btnMasterMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
     $btnMasterMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
 }
 
 function UpdateMicUI {
     if (-not [LogVolumeApp.CoreAudio]::IsMicAvailable()) {
-        $lblMicName.Text = "デバイス: 未検出"
-        $lblMicVal.Text = "マイクが接続されていません"
+        $lblMicName.Text = "マイク未接続"
+        $lblMicVal.Text = "未接続"
         $btnMicMute.Enabled = $false
         $trackMic.Enabled = $false
         $pnlMicPresets.Enabled = $false
@@ -1039,25 +1038,25 @@ function UpdateMicUI {
     $pnlMicPresets.Enabled = $true
 
     $micName = [LogVolumeApp.CoreAudio]::GetMicDeviceName()
-    $lblMicName.Text = "デバイス: $micName"
+    $lblMicName.Text = $micName
 
     $scalar = [LogVolumeApp.CoreAudio]::GetMicScalar()
     $db = [LogVolumeApp.CoreAudio]::GetMicDb()
-    $pct = [int][math]::Round($scalar * 100)
-    $dbSign = if ($db -ge 0) { "+$([math]::Round($db, 1))" } else { "$([math]::Round($db, 1))" }
-    $lblMicVal.Text = "マイク音量: $pct % ($dbSign dB)"
+    $pct = [math]::Round($scalar * 100, 1)
+    $dbSign = if ($db -ge 0) { "+" + ([math]::Round($db, 1)) } else { "" + ([math]::Round($db, 1)) }
+    $lblMicVal.Text = "現在: {0}% ({1} dB)" -f $pct, $dbSign
 
-    if ($trackMic.Value -ne $pct) {
-        $trackMic.Value = $pct
+    if ($trackMic.Value -ne [int]($scalar * 100)) {
+        $trackMic.Value = [int]($scalar * 100)
     }
 
     $mute = [LogVolumeApp.CoreAudio]::GetMicMute()
-    $btnMicMute.Text = if ($mute) { "消音中" } else { "消音" }
+    $btnMicMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
     $btnMicMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
 }
 
 function UpdateAppMuteButton($mute) {
-    $btnAppMute.Text = if ($mute) { "消音中" } else { "消音" }
+    $btnAppMute.Text = if ($mute) { "解除" } else { "消音" }
     $btnAppMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
 }
 
@@ -1070,12 +1069,13 @@ function RefreshAppList {
     $cmbApps.BeginUpdate()
     $cmbApps.Items.Clear()
 
-    # 全アプリ一括項目
+    # 「全アプリ一括適用」項目
     $allItem = New-Object LogVolumeApp.AppSessionItem
     $allItem.ProcessId = -1
-    $allItem.DisplayName = "[★ 全アプリ一括適用 (All Apps)]"
+    $allItem.DisplayName = "全アプリ一括適用"
     $allItem.VolumeScalar = 1.0
     $allItem.VolumeDb = 0.0
+    $allItem.IsMuted = $false
     [void]$cmbApps.Items.Add($allItem)
 
     $sessions = [LogVolumeApp.CoreAudio]::GetSessions()
@@ -1090,11 +1090,9 @@ function RefreshAppList {
     }
     $cmbApps.EndUpdate()
 
-    # 選択項目の復元または初期選択
     if ($selectedIdx -ge 0) {
         $cmbApps.SelectedIndex = $selectedIdx
     } elseif ($cmbApps.Items.Count -gt 1) {
-        # 実アプリが存在する場合は最初の実アプリ (index 1) を選択
         $cmbApps.SelectedIndex = 1
     } else {
         $cmbApps.SelectedIndex = 0
@@ -1108,53 +1106,46 @@ function UpdateAppUIFromSelection {
     if ($sel -eq $null) { return }
 
     if ($sel.ProcessId -eq -1) {
-        # 全アプリ一括: 現在のトラックバー値に基づく表示のみ
         $db = $trackApp.Value / 2.0
         $scalar = [math]::Pow(10.0, $db / 20.0)
-        $pct = [math]::Round($scalar * 100, 2)
-        $lblAppVal.Text = "一括適用音量: $([math]::Round($db, 1)) dB ($pct %)"
+        $pct = [math]::Round($scalar * 100, 1)
+        $lblAppVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
         UpdateAppMuteButton $false
-    } else {
-        # 個別アプリ: 最新の音量を取得してトラックバーにロード
-        $db = [LogVolumeApp.CoreAudio]::GetSessionDb($sel.ProcessId)
-        $scalar = [LogVolumeApp.CoreAudio]::GetSessionScalar($sel.ProcessId)
-        $mute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
-
-        $val = [int]($db * 2)
-        if ($val -lt -120) { $val = -120 }
-        if ($val -gt 0) { $val = 0 }
-        $trackApp.Value = $val
-
-        $pct = [math]::Round($scalar * 100, 2)
-        $lblAppVal.Text = "音量: $([math]::Round($db, 1)) dB ($pct %)"
-        UpdateAppMuteButton $mute
+        return
     }
+
+    $db = [LogVolumeApp.CoreAudio]::GetSessionDb($sel.ProcessId)
+    $scalar = [LogVolumeApp.CoreAudio]::GetSessionScalar($sel.ProcessId)
+    $muted = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
+    $pct = [math]::Round($scalar * 100, 1)
+    $lblAppVal.Text = "{0}: {1} dB ({2}%)" -f $sel.DisplayName, ([math]::Round($db, 1)), $pct
+    $trackApp.Value = [int]($db * 2)
+    UpdateAppMuteButton $muted
 }
 
 function ApplyAppVolumeFromTrackbar {
     $db = $trackApp.Value / 2.0
     $scalar = [math]::Pow(10.0, $db / 20.0)
-    $pct = [math]::Round($scalar * 100, 2)
+    $pct = [math]::Round($scalar * 100, 1)
 
     $sel = $cmbApps.SelectedItem
-    if ($sel -ne $null) {
-        $targetPid = $sel.ProcessId
-        [LogVolumeApp.CoreAudio]::SetSessionDb($targetPid, $db)
-        if ($targetPid -eq -1) {
-            $lblAppVal.Text = "一括適用音量: $([math]::Round($db, 1)) dB ($pct %)"
-        } else {
-            $lblAppVal.Text = "音量: $([math]::Round($db, 1)) dB ($pct %)"
-        }
+    if ($sel -eq $null) { return }
+
+    if ($sel.ProcessId -eq -1) {
+        [LogVolumeApp.CoreAudio]::SetSessionScalar(-1, $scalar)
+        $lblAppVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
+        return
     }
+
+    [LogVolumeApp.CoreAudio]::SetSessionDb($sel.ProcessId, $db)
+    $lblAppVal.Text = "{0}: {1} dB ({2}%)" -f $sel.DisplayName, ([math]::Round($db, 1)), $pct
 }
 
-# --- イベントハンドラ登録 ---
+# --- イベントハンドラ ---
 $trackMaster.Add_Scroll({
     $db = $trackMaster.Value / 2.0
     [LogVolumeApp.CoreAudio]::SetMasterDb($db)
-    $scalar = [LogVolumeApp.CoreAudio]::GetMasterScalar()
-    $pct = [math]::Round($scalar * 100, 1)
-    $lblMasterVal.Text = "マスター音量: $([math]::Round($db, 1)) dB ($pct %)"
+    UpdateMasterUI
 })
 
 $btnMasterMute.Add_Click({
@@ -1166,9 +1157,7 @@ $btnMasterMute.Add_Click({
 $trackMic.Add_Scroll({
     $scalar = $trackMic.Value / 100.0
     [LogVolumeApp.CoreAudio]::SetMicScalar($scalar)
-    $db = [LogVolumeApp.CoreAudio]::GetMicDb()
-    $dbSign = if ($db -ge 0) { "+$([math]::Round($db, 1))" } else { "$([math]::Round($db, 1))" }
-    $lblMicVal.Text = "マイク音量: $($trackMic.Value) % ($dbSign dB)"
+    UpdateMicUI
 })
 
 $btnMicMute.Add_Click({
@@ -1177,55 +1166,31 @@ $btnMicMute.Add_Click({
     UpdateMicUI
 })
 
-$trackApp.Add_Scroll({
-    ApplyAppVolumeFromTrackbar
-})
-
 $btnAppMute.Add_Click({
     $sel = $cmbApps.SelectedItem
-    if ($sel -ne $null) {
-        $targetPid = $sel.ProcessId
-        $curMute = [LogVolumeApp.CoreAudio]::GetSessionMute($targetPid)
-        [LogVolumeApp.CoreAudio]::SetSessionMute($targetPid, -not $curMute)
-        UpdateAppMuteButton (-not $curMute)
+    if ($sel -eq $null) { return }
+
+    if ($sel.ProcessId -eq -1) {
+        $allMute = [LogVolumeApp.CoreAudio]::GetSessionMute(-1)
+        [LogVolumeApp.CoreAudio]::SetSessionMute(-1, -not $allMute)
+        UpdateAppUIFromSelection
+        return
     }
-})
 
-$btnRefresh.Add_Click({
-    RefreshAppList
-})
-
-$cmbApps.Add_SelectedIndexChanged({
+    $currentMute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
+    [LogVolumeApp.CoreAudio]::SetSessionMute($sel.ProcessId, -not $currentMute)
     UpdateAppUIFromSelection
 })
 
-# --- バックグラウンド同期タイマー ---
-$timerSync = New-Object System.Windows.Forms.Timer
-$timerSync.Interval = 1000
-$timerSync.Add_Tick({
-    # ユーザーがマウスドラッグ操作中でない場合のみ更新
-    if ([System.Windows.Forms.Control]::MouseButtons -eq [System.Windows.Forms.MouseButtons]::None) {
-        UpdateMasterUI
-        UpdateMicUI
+$btnRefresh.Add_Click({ RefreshAppList })
 
-        $sel = $cmbApps.SelectedItem
-        if ($sel -ne $null -and $sel.ProcessId -ne -1) {
-            $mute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
-            UpdateAppMuteButton $mute
-        }
-    }
-})
-$timerSync.Start()
+$cmbApps.Add_SelectedIndexChanged({ UpdateAppUIFromSelection })
+$trackApp.Add_Scroll({ ApplyAppVolumeFromTrackbar })
 
-$form.Add_FormClosing({
-    $timerSync.Stop()
-    $timerSync.Dispose()
-})
-
-# 初期ロード
+# 初期化
 UpdateMasterUI
 UpdateMicUI
 RefreshAppList
 
 # フォーム表示
-[System.Windows.Forms.Application]::Run($form)
+$form.ShowDialog()
