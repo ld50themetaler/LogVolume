@@ -12,10 +12,68 @@ using System.Diagnostics;
 using System.Collections.Generic;
 
 namespace LogVolumeApp {
+    [Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IMMDeviceCollection {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int Item(uint index, out IMMDevice device);
+    }
+
     [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IMMDeviceEnumerator {
-        [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+        [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IMMDeviceCollection devices);
         [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);
+    }
+
+    [Guid("9c2c4058-23f5-41de-877a-df3af236a09e"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IConnector {
+        [PreserveSig] int GetType(out int type);
+        [PreserveSig] int GetDataFlow(out int flow);
+        [PreserveSig] int ConnectTo(IConnector connectTo);
+        [PreserveSig] int Disconnect();
+        [PreserveSig] int IsConnected(out bool connected);
+        [PreserveSig] int GetConnectedTo(out IConnector connectedTo);
+        [PreserveSig] int GetConnectorIdConnectedTo([MarshalAs(UnmanagedType.LPWStr)] out string id);
+        [PreserveSig] int GetDeviceIdConnectedTo([MarshalAs(UnmanagedType.LPWStr)] out string id);
+    }
+
+    [Guid("2A07407E-6497-4A18-9787-32F79BD0D98F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IDeviceTopology {
+        [PreserveSig] int GetConnectorCount(out uint count);
+        [PreserveSig] int GetConnector(uint index, out IConnector connector);
+        [PreserveSig] int GetSubunitCount(out uint count);
+        [PreserveSig] int GetSubunit(uint index, out IntPtr subunit);
+        [PreserveSig] int GetPartById(uint localId, out IPart part);
+    }
+
+    [Guid("AE2DE0E4-5BCA-4F2D-AA46-5D13F8FDB3A9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IPart {
+        [PreserveSig] int GetName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+        [PreserveSig] int GetLocalId(out uint id);
+        [PreserveSig] int GetGlobalId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+        [PreserveSig] int GetPartType(out int partType);
+        [PreserveSig] int GetSubType(out Guid subType);
+        [PreserveSig] int GetControlInterfaceCount(out uint count);
+        [PreserveSig] int GetControlInterface(uint index, out IntPtr controlInterface);
+        [PreserveSig] int EnumPartsIncoming(out IntPtr parts);
+        [PreserveSig] int EnumPartsOutgoing(out IntPtr parts);
+        [PreserveSig] int GetTopologyObject(out IDeviceTopology topology);
+        [PreserveSig] int Activate(int clsCtx, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object interfacePointer);
+    }
+
+    [Guid("7FB7B48F-531D-44A2-BCB3-5AD5A134B3DC"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IAudioVolumeLevel {
+        [PreserveSig] int GetChannelCount(out uint count);
+        [PreserveSig] int GetLevelRange(uint channel, out float minLevelDB, out float maxLevelDB, out float stepping);
+        [PreserveSig] int GetLevel(uint channel, out float levelDB);
+        [PreserveSig] int SetLevel(uint channel, float levelDB, ref Guid eventContext);
+        [PreserveSig] int SetLevelUniform(float levelDB, ref Guid eventContext);
+        [PreserveSig] int SetLevelAllChannels(float[] levelsDB, uint channels, ref Guid eventContext);
+    }
+
+    [Guid("DF45AEEA-B74A-4B6B-AFAD-2366B6AA012E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IAudioMute {
+        [PreserveSig] int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, ref Guid eventContext);
+        [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
     }
 
     [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -744,61 +802,58 @@ namespace LogVolumeApp {
             }
         }
 
-        [Guid("2A07407E-6497-4A18-9787-32F79BD0D98F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        public interface IDeviceTopology {
-            [PreserveSig] int GetConnectorCount(out uint count);
-            [PreserveSig] int GetConnector(uint index, out IntPtr connector);
-            [PreserveSig] int GetSubunitCount(out uint count);
-            [PreserveSig] int GetSubunit(uint index, out IntPtr subunit);
-            [PreserveSig] int GetPartById(uint localId, out IPart part);
-        }
-
-        [Guid("AE2DE0E4-5BCA-4F2D-AA46-5D13F8FDB3A9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        public interface IPart {
-            [PreserveSig] int GetName([MarshalAs(UnmanagedType.LPWStr)] out string name);
-            [PreserveSig] int GetLocalId(out uint id);
-            [PreserveSig] int GetGlobalId([MarshalAs(UnmanagedType.LPWStr)] out string id);
-            [PreserveSig] int GetPartType(out int partType);
-            [PreserveSig] int GetSubType(out Guid subType);
-            [PreserveSig] int GetControlInterfaceCount(out uint count);
-            [PreserveSig] int GetControlInterface(uint index, out IntPtr controlInterface);
-            [PreserveSig] int EnumPartsIncoming(out IntPtr parts);
-            [PreserveSig] int EnumPartsOutgoing(out IntPtr parts);
-            [PreserveSig] int GetTopologyObject(out IDeviceTopology topology);
-            [PreserveSig] int Activate(int clsCtx, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object interfacePointer);
-        }
-
         public static IPart GetSidetonePart(uint id) {
-            IMMDeviceEnumerator enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+            IMMDeviceEnumerator enumerator = null;
             IMMDeviceCollection col = null;
-            enumerator.EnumAudioEndpoints(0, 1, out col);
-            uint count = 0;
-            if (col != null) col.GetCount(out count);
-            for(uint i=0; i<count; i++) {
-                IMMDevice dev = null;
-                col.Item(i, out dev);
-                string name = "";
-                IPropertyStore store = null;
-                dev.OpenPropertyStore(0, out store);
-                if (store != null) {
-                    PropertyKey key = new PropertyKey(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
-                    PropVariant pv = new PropVariant();
-                    store.GetValue(ref key, out pv);
-                    name = Marshal.PtrToStringUni(pv.pwszVal) ?? "";
-                    Marshal.ReleaseComObject(store);
-                }
-                if (name == "スピーカー (USB audio CODEC)") {
-                    Guid iidTopo = typeof(IDeviceTopology).GUID;
-                    object objTopo = null;
-                    dev.Activate(ref iidTopo, 1, IntPtr.Zero, out objTopo);
-                    var topo = objTopo as IDeviceTopology;
-                    if (topo != null) {
-                        IPart part = null;
-                        topo.GetPartById(id, out part);
-                        return part;
+            try {
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                enumerator.EnumAudioEndpoints(0, 1, out col);
+                uint count = 0;
+                if (col != null) col.GetCount(out count);
+                for (uint i = 0; i < count; i++) {
+                    IMMDevice dev = null;
+                    col.Item(i, out dev);
+                    if (dev == null) continue;
+
+                    string name = "";
+                    IPropertyStore store = null;
+                    dev.OpenPropertyStore(0, out store);
+                    if (store != null) {
+                        PropertyKey key = new PropertyKey(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
+                        PropVariant pv = new PropVariant();
+                        store.GetValue(ref key, out pv);
+                        name = Marshal.PtrToStringUni(pv.pwszVal) ?? "";
+                        Marshal.ReleaseComObject(store);
+                    }
+
+                    if (name.IndexOf("USB audio CODEC", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        Guid iidTopo = typeof(IDeviceTopology).GUID;
+                        object objTopo = null;
+                        dev.Activate(ref iidTopo, 1, IntPtr.Zero, out objTopo);
+                        IDeviceTopology epTopo = objTopo as IDeviceTopology;
+                        if (epTopo != null) {
+                            IConnector epConn = null;
+                            epTopo.GetConnector(0, out epConn);
+                            if (epConn != null) {
+                                IConnector hwConn = null;
+                                epConn.GetConnectedTo(out hwConn);
+                                if (hwConn != null) {
+                                    IPart hwPart = hwConn as IPart;
+                                    if (hwPart != null) {
+                                        IDeviceTopology hwTopo = null;
+                                        hwPart.GetTopologyObject(out hwTopo);
+                                        if (hwTopo != null) {
+                                            IPart part = null;
+                                            hwTopo.GetPartById(id, out part);
+                                            return part;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
+            } catch {}
             return null;
         }
 
