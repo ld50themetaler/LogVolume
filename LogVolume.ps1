@@ -750,6 +750,55 @@ namespace LogVolumeApp {
 Add-Type -TypeDefinition $csharp
 
 # --- GUI構築 ---
+# --- テーマ判定 ---
+$isLight = $false
+try {
+    $regKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+    $val = Get-ItemProperty -Path $regKey -Name 'AppsUseLightTheme' -ErrorAction SilentlyContinue
+    if ($val -ne $null -and $val.AppsUseLightTheme -eq 1) {
+        $isLight = $true
+    }
+} catch {}
+
+if ($isLight) {
+    $cFormBg = [System.Drawing.Color]::FromArgb(245, 245, 245)
+    $cFormFg = [System.Drawing.Color]::Black
+    $cGrpMaster = [System.Drawing.Color]::FromArgb(0, 50, 150)
+    $cGrpApp = [System.Drawing.Color]::FromArgb(0, 100, 60)
+    $cGrpMic = [System.Drawing.Color]::FromArgb(150, 70, 0)
+    $cBtnBg = [System.Drawing.Color]::FromArgb(225, 225, 225)
+    $cBtnFg = [System.Drawing.Color]::Black
+    $cBtnMuteOn = [System.Drawing.Color]::FromArgb(255, 120, 120)
+    $cPresetsMasterBg = [System.Drawing.Color]::FromArgb(215, 225, 240)
+    $cPresetsMasterFg = [System.Drawing.Color]::FromArgb(0, 40, 100)
+    $cPresetsAppBg = [System.Drawing.Color]::FromArgb(215, 240, 225)
+    $cPresetsAppFg = [System.Drawing.Color]::FromArgb(0, 80, 40)
+    $cPresetsMicBg = [System.Drawing.Color]::FromArgb(245, 225, 210)
+    $cPresetsMicFg = [System.Drawing.Color]::FromArgb(120, 50, 0)
+    $cComboBg = [System.Drawing.Color]::White
+    $cPresetHint = [System.Drawing.Color]::FromArgb(180, 80, 0)
+    $cNote = [System.Drawing.Color]::FromArgb(80, 80, 80)
+    $cMicName = [System.Drawing.Color]::FromArgb(60, 60, 60)
+} else {
+    $cFormBg = [System.Drawing.Color]::FromArgb(28, 28, 30)
+    $cFormFg = [System.Drawing.Color]::White
+    $cGrpMaster = [System.Drawing.Color]::FromArgb(180, 210, 255)
+    $cGrpApp = [System.Drawing.Color]::FromArgb(180, 255, 210)
+    $cGrpMic = [System.Drawing.Color]::FromArgb(255, 210, 160)
+    $cBtnBg = [System.Drawing.Color]::FromArgb(55, 55, 60)
+    $cBtnFg = [System.Drawing.Color]::White
+    $cBtnMuteOn = [System.Drawing.Color]::FromArgb(160, 45, 45)
+    $cPresetsMasterBg = [System.Drawing.Color]::FromArgb(45, 45, 50)
+    $cPresetsMasterFg = [System.Drawing.Color]::FromArgb(210, 220, 235)
+    $cPresetsAppBg = [System.Drawing.Color]::FromArgb(35, 50, 40)
+    $cPresetsAppFg = [System.Drawing.Color]::FromArgb(180, 255, 200)
+    $cPresetsMicBg = [System.Drawing.Color]::FromArgb(50, 45, 40)
+    $cPresetsMicFg = [System.Drawing.Color]::FromArgb(240, 220, 200)
+    $cComboBg = [System.Drawing.Color]::FromArgb(40, 40, 45)
+    $cPresetHint = [System.Drawing.Color]::FromArgb(255, 220, 120)
+    $cNote = [System.Drawing.Color]::FromArgb(150, 150, 150)
+    $cMicName = [System.Drawing.Color]::FromArgb(200, 200, 200)
+}
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "LogVolume - 対数音量ミキサー"
 $form.StartPosition = "CenterScreen"
@@ -776,7 +825,7 @@ $grpMaster = New-Object System.Windows.Forms.GroupBox
 $grpMaster.Text = " 1. マスター音量 (全体 / 出力) "
 $grpMaster.Location = New-Object System.Drawing.Point(15, 38)
 $grpMaster.Size = New-Object System.Drawing.Size(465, 175)
-$grpMaster.ForeColor = [System.Drawing.Color]::FromArgb(180, 210, 255)
+$grpMaster.ForeColor = `$cGrpMaster
 
 $lblMasterVal = New-Object System.Windows.Forms.Label
 $lblMasterVal.Location = New-Object System.Drawing.Point(15, 24)
@@ -790,7 +839,7 @@ $btnMasterMute.Location = New-Object System.Drawing.Point(345, 18)
 $btnMasterMute.Size = New-Object System.Drawing.Size(105, 30)
 $btnMasterMute.FlatStyle = "Flat"
 $btnMasterMute.BackColor = `$cBtnBg
-$btnMasterMute.ForeColor = `$cFormFg
+$btnMasterMute.ForeColor = `$cBtnFg
 $grpMaster.Controls.Add($btnMasterMute)
 
 $trackMaster = New-Object System.Windows.Forms.TrackBar
@@ -820,8 +869,8 @@ foreach ($p in $masterPresets) {
     $btn.Size = New-Object System.Drawing.Size(85, 34)
     $btn.Location = New-Object System.Drawing.Point($mx, 4)
     $btn.FlatStyle = "Flat"
-    $btn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 50)
-    $btn.ForeColor = [System.Drawing.Color]::FromArgb(210, 220, 235)
+    $btn.BackColor = `$cPresetsMasterBg
+    $btn.ForeColor = `$cPresetsMasterFg
     $targetDb = $p.Db
     $btn.Add_Click({
         [LogVolumeApp.CoreAudio]::SetMasterDb($targetDb)
@@ -840,7 +889,7 @@ $grpApp = New-Object System.Windows.Forms.GroupBox
 $grpApp.Text = " 2. アプリケーション音量 (対数・微小調整) "
 $grpApp.Location = New-Object System.Drawing.Point(15, 222)
 $grpApp.Size = New-Object System.Drawing.Size(465, 275)
-$grpApp.ForeColor = [System.Drawing.Color]::FromArgb(180, 255, 210)
+$grpApp.ForeColor = `$cGrpApp
 
 $lblAppSelect = New-Object System.Windows.Forms.Label
 $lblAppSelect.Text = "対象アプリ:"
@@ -852,7 +901,7 @@ $cmbApps = New-Object System.Windows.Forms.ComboBox
 $cmbApps.Location = New-Object System.Drawing.Point(88, 20)
 $cmbApps.Size = New-Object System.Drawing.Size(232, 26)
 $cmbApps.DropDownStyle = "DropDownList"
-$cmbApps.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 45)
+$cmbApps.BackColor = `$cComboBg
 $cmbApps.ForeColor = `$cFormFg
 $grpApp.Controls.Add($cmbApps)
 
@@ -862,7 +911,7 @@ $btnAppMute.Location = New-Object System.Drawing.Point(328, 18)
 $btnAppMute.Size = New-Object System.Drawing.Size(62, 28)
 $btnAppMute.FlatStyle = "Flat"
 $btnAppMute.BackColor = `$cBtnBg
-$btnAppMute.ForeColor = `$cFormFg
+$btnAppMute.ForeColor = `$cBtnFg
 $grpApp.Controls.Add($btnAppMute)
 
 $btnRefresh = New-Object System.Windows.Forms.Button
@@ -871,7 +920,7 @@ $btnRefresh.Location = New-Object System.Drawing.Point(396, 18)
 $btnRefresh.Size = New-Object System.Drawing.Size(54, 28)
 $btnRefresh.FlatStyle = "Flat"
 $btnRefresh.BackColor = `$cBtnBg
-$btnRefresh.ForeColor = `$cFormFg
+$btnRefresh.ForeColor = `$cBtnFg
 $grpApp.Controls.Add($btnRefresh)
 
 $lblAppVal = New-Object System.Windows.Forms.Label
@@ -894,7 +943,7 @@ $lblPresetHint = New-Object System.Windows.Forms.Label
 $lblPresetHint.Text = "★ 微小音量プリセット (Windows標準の1%以下の世界):"
 $lblPresetHint.Location = New-Object System.Drawing.Point(15, 134)
 $lblPresetHint.Size = New-Object System.Drawing.Size(435, 20)
-$lblPresetHint.ForeColor = [System.Drawing.Color]::FromArgb(255, 220, 120)
+$lblPresetHint.ForeColor = `$cPresetHint
 $grpApp.Controls.Add($lblPresetHint)
 
 $pnlAppPresets = New-Object System.Windows.Forms.Panel
@@ -915,8 +964,8 @@ foreach ($p in $appPresets) {
     $btn.Size = New-Object System.Drawing.Size(85, 36)
     $btn.Location = New-Object System.Drawing.Point($ax, 4)
     $btn.FlatStyle = "Flat"
-    $btn.BackColor = [System.Drawing.Color]::FromArgb(35, 50, 40)
-    $btn.ForeColor = [System.Drawing.Color]::FromArgb(180, 255, 200)
+    $btn.BackColor = `$cPresetsAppBg
+    $btn.ForeColor = `$cPresetsAppFg
     $targetDb = $p.Db
     $btn.Add_Click({
         $trackApp.Value = [int]($targetDb * 2)
@@ -931,7 +980,7 @@ $lblNote = New-Object System.Windows.Forms.Label
 $lblNote.Text = "※「全アプリ一括適用」を選択した場合、操作した瞬間に全セッションへ反映されます。"
 $lblNote.Location = New-Object System.Drawing.Point(15, 210)
 $lblNote.Size = New-Object System.Drawing.Size(435, 55)
-$lblNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 150, 150)
+$lblNote.ForeColor = `$cNote
 $lblNote.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpApp.Controls.Add($lblNote)
 
@@ -944,12 +993,12 @@ $grpMic = New-Object System.Windows.Forms.GroupBox
 $grpMic.Text = " 3. マイク音量 (入力) "
 $grpMic.Location = New-Object System.Drawing.Point(15, 507)
 $grpMic.Size = New-Object System.Drawing.Size(465, 175)
-$grpMic.ForeColor = [System.Drawing.Color]::FromArgb(255, 210, 160)
+$grpMic.ForeColor = `$cGrpMic
 
 $lblMicName = New-Object System.Windows.Forms.Label
 $lblMicName.Location = New-Object System.Drawing.Point(15, 20)
 $lblMicName.Size = New-Object System.Drawing.Size(320, 18)
-$lblMicName.ForeColor = [System.Drawing.Color]::FromArgb(200, 200, 200)
+$lblMicName.ForeColor = `$cMicName
 $lblMicName.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpMic.Controls.Add($lblMicName)
 
@@ -965,7 +1014,7 @@ $btnMicMute.Location = New-Object System.Drawing.Point(345, 22)
 $btnMicMute.Size = New-Object System.Drawing.Size(105, 30)
 $btnMicMute.FlatStyle = "Flat"
 $btnMicMute.BackColor = `$cBtnBg
-$btnMicMute.ForeColor = `$cFormFg
+$btnMicMute.ForeColor = `$cBtnFg
 $grpMic.Controls.Add($btnMicMute)
 
 $trackMic = New-Object System.Windows.Forms.TrackBar
@@ -995,8 +1044,8 @@ foreach ($p in $micPresets) {
     $btn.Size = New-Object System.Drawing.Size(85, 34)
     $btn.Location = New-Object System.Drawing.Point($ux, 4)
     $btn.FlatStyle = "Flat"
-    $btn.BackColor = [System.Drawing.Color]::FromArgb(50, 45, 40)
-    $btn.ForeColor = [System.Drawing.Color]::FromArgb(240, 220, 200)
+    $btn.BackColor = `$cPresetsMicBg
+    $btn.ForeColor = `$cPresetsMicFg
     $targetScalar = $p.Scalar
     $btn.Add_Click({
         [LogVolumeApp.CoreAudio]::SetMicScalar($targetScalar)
