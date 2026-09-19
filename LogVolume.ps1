@@ -1154,7 +1154,7 @@ foreach ($p in $appPresets) {
 $grpApp.Controls.Add($pnlAppPresets)
 
 $lblNote = New-Object System.Windows.Forms.Label
-$lblNote.Text = "※「全アプリ一括適用」を選択した場合、操作した瞬間に全セッションへ反映されます。"
+$lblNote.Text = "※「全アプリ一括適用」時は新規起動アプリにも自動で本音量が適用されます。"
 $lblNote.Location = New-Object System.Drawing.Point(15, 210)
 $lblNote.Size = New-Object System.Drawing.Size(435, 55)
 $lblNote.ForeColor = $cNote
@@ -1407,6 +1407,8 @@ function UpdateSidetoneUI {
     $btnSidetoneMute.BackColor = if ($mute) { $cBtnMuteOn } else { $cBtnBg }
 }
 
+$script:knownSessionPids = New-Object 'System.Collections.Generic.HashSet[int]'
+
 function RefreshAppList {
     $currentSelectedPid = -999
     if ($cmbApps.SelectedItem -ne $null) {
@@ -1429,6 +1431,7 @@ function RefreshAppList {
     $selectedIdx = -1
     $i = 1
     foreach ($s in $sessions) {
+        [void]$script:knownSessionPids.Add($s.ProcessId)
         [void]$cmbApps.Items.Add($s)
         if ($s.ProcessId -eq $currentSelectedPid) {
             $selectedIdx = $i
@@ -1439,8 +1442,6 @@ function RefreshAppList {
 
     if ($selectedIdx -ge 0) {
         $cmbApps.SelectedIndex = $selectedIdx
-    } elseif ($cmbApps.Items.Count -gt 1) {
-        $cmbApps.SelectedIndex = 1
     } else {
         $cmbApps.SelectedIndex = 0
     }
@@ -1565,6 +1566,49 @@ $timerSync.Add_Tick({
         UpdateMasterUI
         UpdateMicUI
         UpdateSidetoneUI
+
+        # 音声セッション（アプリ）の定期監視と新着アプリへの自動音量適用
+        $currentSessions = [LogVolumeApp.CoreAudio]::GetSessions()
+        $hasNewApp = $false
+        $hasExitedApp = $false
+
+        $currentPids = New-Object 'System.Collections.Generic.HashSet[int]'
+        foreach ($s in $currentSessions) {
+            [void]$currentPids.Add($s.ProcessId)
+            if (-not $script:knownSessionPids.Contains($s.ProcessId)) {
+                # 新規起動アプリを検出！
+                $hasNewApp = $true
+                [void]$script:knownSessionPids.Add($s.ProcessId)
+
+                # 「全アプリ一括適用」が選択されている場合は、現在の設定音量を即時適用
+                $sel = $cmbApps.SelectedItem
+                if ($sel -ne $null -and $sel.ProcessId -eq -1) {
+                    $db = $trackApp.Value / 2.0
+                    [LogVolumeApp.CoreAudio]::SetSessionDb($s.ProcessId, $db)
+
+                    if ($btnAppMute.Text -eq "消音中") {
+                        [LogVolumeApp.CoreAudio]::SetSessionMute($s.ProcessId, $true)
+                    }
+                }
+            }
+        }
+
+        # 終了したアプリを knownSessionPids から除外
+        $removedPids = @()
+        foreach ($kpid in $script:knownSessionPids) {
+            if (-not $currentPids.Contains($kpid)) {
+                $removedPids += $kpid
+                $hasExitedApp = $true
+            }
+        }
+        foreach ($rpid in $removedPids) {
+            [void]$script:knownSessionPids.Remove($rpid)
+        }
+
+        # アプリの起動や終了があり、ドロップダウンメニューを展開中でない場合は一覧を更新
+        if (($hasNewApp -or $hasExitedApp) -and -not $cmbApps.DroppedDown) {
+            RefreshAppList
+        }
 
         $sel = $cmbApps.SelectedItem
         if ($sel -ne $null -and $sel.ProcessId -ne -1) {
