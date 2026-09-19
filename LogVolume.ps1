@@ -96,7 +96,8 @@ namespace LogVolumeApp {
         [PreserveSig] int GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
         [PreserveSig] int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
         [PreserveSig] int GetProcessId(out int processId);
-        [PreserveSig] int IsSystemSoundsSession([MarshalAs(UnmanagedType.Bool)] out bool isSystemSounds);
+        // 正しい公式COMシグネチャ: HRESULT IsSystemSoundsSession(void);
+        [PreserveSig] int IsSystemSoundsSession();
         [PreserveSig] int SetDuckingPreference([MarshalAs(UnmanagedType.Bool)] bool optOut);
     }
 
@@ -121,7 +122,6 @@ namespace LogVolumeApp {
     }
 
     public static class CoreAudio {
-        // --- スピーカー (eRender = 0) ---
         private static IMMDevice GetDefaultRenderEndpoint(out IMMDeviceEnumerator enumerator) {
             enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
             IMMDevice dev = null;
@@ -129,11 +129,9 @@ namespace LogVolumeApp {
             return dev;
         }
 
-        // --- マイク (eCapture = 1) ---
         private static IMMDevice GetDefaultCaptureEndpoint(out IMMDeviceEnumerator enumerator) {
             enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
             IMMDevice dev = null;
-            // role: 1 (eMultimedia) -> 失敗時 role: 0 (eConsole)
             int hr = enumerator.GetDefaultAudioEndpoint(1, 1, out dev);
             if (hr != 0 || dev == null) {
                 enumerator.GetDefaultAudioEndpoint(1, 0, out dev);
@@ -159,7 +157,7 @@ namespace LogVolumeApp {
         }
 
         // ==========================================
-        // マスター音量 (スピーカー / 出力)
+        // 1. マスター音量 (スピーカー / 出力)
         // ==========================================
         public static float GetMasterDb() {
             IMMDeviceEnumerator enumerator = null;
@@ -287,7 +285,7 @@ namespace LogVolumeApp {
         }
 
         // ==========================================
-        // マイク音量 (入力 / キャプチャ)
+        // 2. マイク音量 (入力 / キャプチャ)
         // ==========================================
         public static bool IsMicAvailable() {
             IMMDeviceEnumerator enumerator = null;
@@ -441,7 +439,7 @@ namespace LogVolumeApp {
         }
 
         // ==========================================
-        // アプリケーション音量セッション
+        // 3. アプリケーション音量セッション
         // ==========================================
         public static List<AppSessionItem> GetSessions() {
             var list = new List<AppSessionItem>();
@@ -473,13 +471,12 @@ namespace LogVolumeApp {
 
                         int pid = 0;
                         ctl.GetProcessId(out pid);
-                        bool isSys;
-                        ctl.IsSystemSoundsSession(out isSys);
+                        int isSys = ctl.IsSystemSoundsSession();
 
                         if (seenPids.Contains(pid)) continue;
 
                         string friendlyName = "";
-                        if (isSys || pid == 0) {
+                        if (isSys == 0 || pid == 0) {
                             friendlyName = "システム音 (System Sounds)";
                         } else {
                             try {
@@ -755,7 +752,6 @@ Add-Type -TypeDefinition $csharp
 # --- GUI構築 ---
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "LogVolume - 対数音量ミキサー"
-$form.Size = New-Object System.Drawing.Size(515, 785)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -773,31 +769,33 @@ $chkTopMost.AutoSize = $true
 $chkTopMost.Add_CheckedChanged({ $form.TopMost = $chkTopMost.Checked })
 $form.Controls.Add($chkTopMost)
 
-# --- 1. マスター音量グループ (スピーカー / 出力) ---
+# ==========================================
+# 1. マスター音量グループ (全体 / 出力)
+# ==========================================
 $grpMaster = New-Object System.Windows.Forms.GroupBox
 $grpMaster.Text = " 1. マスター音量 (全体 / 出力) "
 $grpMaster.Location = New-Object System.Drawing.Point(15, 38)
-$grpMaster.Size = New-Object System.Drawing.Size(470, 185)
+$grpMaster.Size = New-Object System.Drawing.Size(465, 175)
 $grpMaster.ForeColor = [System.Drawing.Color]::FromArgb(180, 210, 255)
 
 $lblMasterVal = New-Object System.Windows.Forms.Label
-$lblMasterVal.Location = New-Object System.Drawing.Point(15, 25)
-$lblMasterVal.Size = New-Object System.Drawing.Size(320, 26)
+$lblMasterVal.Location = New-Object System.Drawing.Point(15, 24)
+$lblMasterVal.Size = New-Object System.Drawing.Size(320, 24)
 $lblMasterVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblMasterVal.ForeColor = [System.Drawing.Color]::White
 $grpMaster.Controls.Add($lblMasterVal)
 
 $btnMasterMute = New-Object System.Windows.Forms.Button
-$btnMasterMute.Location = New-Object System.Drawing.Point(345, 20)
-$btnMasterMute.Size = New-Object System.Drawing.Size(110, 32)
+$btnMasterMute.Location = New-Object System.Drawing.Point(345, 18)
+$btnMasterMute.Size = New-Object System.Drawing.Size(105, 30)
 $btnMasterMute.FlatStyle = "Flat"
 $btnMasterMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
 $btnMasterMute.ForeColor = [System.Drawing.Color]::White
 $grpMaster.Controls.Add($btnMasterMute)
 
 $trackMaster = New-Object System.Windows.Forms.TrackBar
-$trackMaster.Location = New-Object System.Drawing.Point(10, 58)
-$trackMaster.Size = New-Object System.Drawing.Size(450, 45)
+$trackMaster.Location = New-Object System.Drawing.Point(10, 54)
+$trackMaster.Size = New-Object System.Drawing.Size(445, 45)
 $trackMaster.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackMaster.Maximum = 0    # 0 dB
 $trackMaster.TickFrequency = 10
@@ -805,8 +803,8 @@ $grpMaster.Controls.Add($trackMaster)
 
 # マスタープリセット
 $pnlMasterPresets = New-Object System.Windows.Forms.Panel
-$pnlMasterPresets.Location = New-Object System.Drawing.Point(10, 115)
-$pnlMasterPresets.Size = New-Object System.Drawing.Size(450, 55)
+$pnlMasterPresets.Location = New-Object System.Drawing.Point(10, 110)
+$pnlMasterPresets.Size = New-Object System.Drawing.Size(445, 52)
 
 $masterPresets = @(
     @{ Text = "-40 dB (1%)";   Db = -40.0 },
@@ -819,8 +817,8 @@ $mx = 0
 foreach ($p in $masterPresets) {
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $p.Text
-    $btn.Size = New-Object System.Drawing.Size(86, 34)
-    $btn.Location = New-Object System.Drawing.Point($mx, 5)
+    $btn.Size = New-Object System.Drawing.Size(85, 34)
+    $btn.Location = New-Object System.Drawing.Point($mx, 4)
     $btn.FlatStyle = "Flat"
     $btn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 50)
     $btn.ForeColor = [System.Drawing.Color]::FromArgb(210, 220, 235)
@@ -835,91 +833,24 @@ foreach ($p in $masterPresets) {
 $grpMaster.Controls.Add($pnlMasterPresets)
 $form.Controls.Add($grpMaster)
 
-# --- 2. マイク音量グループ (入力) ---
-$grpMic = New-Object System.Windows.Forms.GroupBox
-$grpMic.Text = " 2. マイク音量 (入力) "
-$grpMic.Location = New-Object System.Drawing.Point(15, 232)
-$grpMic.Size = New-Object System.Drawing.Size(470, 190)
-$grpMic.ForeColor = [System.Drawing.Color]::FromArgb(255, 210, 160)
-
-$lblMicName = New-Object System.Windows.Forms.Label
-$lblMicName.Location = New-Object System.Drawing.Point(15, 22)
-$lblMicName.Size = New-Object System.Drawing.Size(320, 18)
-$lblMicName.ForeColor = [System.Drawing.Color]::FromArgb(200, 200, 200)
-$lblMicName.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
-$grpMic.Controls.Add($lblMicName)
-
-$lblMicVal = New-Object System.Windows.Forms.Label
-$lblMicVal.Location = New-Object System.Drawing.Point(15, 42)
-$lblMicVal.Size = New-Object System.Drawing.Size(320, 26)
-$lblMicVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
-$lblMicVal.ForeColor = [System.Drawing.Color]::White
-$grpMic.Controls.Add($lblMicVal)
-
-$btnMicMute = New-Object System.Windows.Forms.Button
-$btnMicMute.Location = New-Object System.Drawing.Point(345, 28)
-$btnMicMute.Size = New-Object System.Drawing.Size(110, 32)
-$btnMicMute.FlatStyle = "Flat"
-$btnMicMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
-$btnMicMute.ForeColor = [System.Drawing.Color]::White
-$grpMic.Controls.Add($btnMicMute)
-
-$trackMic = New-Object System.Windows.Forms.TrackBar
-$trackMic.Location = New-Object System.Drawing.Point(10, 72)
-$trackMic.Size = New-Object System.Drawing.Size(450, 45)
-$trackMic.Minimum = 0   # 0 %
-$trackMic.Maximum = 100 # 100 %
-$trackMic.TickFrequency = 10
-$grpMic.Controls.Add($trackMic)
-
-# マイクプリセット
-$pnlMicPresets = New-Object System.Windows.Forms.Panel
-$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 126)
-$pnlMicPresets.Size = New-Object System.Drawing.Size(450, 55)
-
-$micPresets = @(
-    @{ Text = "0% (消音)"; Scalar = 0.00 },
-    @{ Text = "25%";       Scalar = 0.25 },
-    @{ Text = "50%";       Scalar = 0.50 },
-    @{ Text = "75%";       Scalar = 0.75 },
-    @{ Text = "100%";      Scalar = 1.00 }
-)
-$ux = 0
-foreach ($p in $micPresets) {
-    $btn = New-Object System.Windows.Forms.Button
-    $btn.Text = $p.Text
-    $btn.Size = New-Object System.Drawing.Size(86, 34)
-    $btn.Location = New-Object System.Drawing.Point($ux, 5)
-    $btn.FlatStyle = "Flat"
-    $btn.BackColor = [System.Drawing.Color]::FromArgb(50, 45, 40)
-    $btn.ForeColor = [System.Drawing.Color]::FromArgb(240, 220, 200)
-    $targetScalar = $p.Scalar
-    $btn.Add_Click({
-        [LogVolumeApp.CoreAudio]::SetMicScalar($targetScalar)
-        UpdateMicUI
-    }.GetNewClosure())
-    $pnlMicPresets.Controls.Add($btn)
-    $ux += 90
-}
-$grpMic.Controls.Add($pnlMicPresets)
-$form.Controls.Add($grpMic)
-
-# --- 3. アプリケーション音量グループ ---
+# ==========================================
+# 2. アプリケーション音量グループ (対数・微小調整) ※順序入れ替え
+# ==========================================
 $grpApp = New-Object System.Windows.Forms.GroupBox
-$grpApp.Text = " 3. アプリケーション音量 (対数・微小調整) "
-$grpApp.Location = New-Object System.Drawing.Point(15, 430)
-$grpApp.Size = New-Object System.Drawing.Size(470, 310)
+$grpApp.Text = " 2. アプリケーション音量 (対数・微小調整) "
+$grpApp.Location = New-Object System.Drawing.Point(15, 222)
+$grpApp.Size = New-Object System.Drawing.Size(465, 275)
 $grpApp.ForeColor = [System.Drawing.Color]::FromArgb(180, 255, 210)
 
 $lblAppSelect = New-Object System.Windows.Forms.Label
 $lblAppSelect.Text = "対象アプリ:"
-$lblAppSelect.Location = New-Object System.Drawing.Point(15, 26)
-$lblAppSelect.Size = New-Object System.Drawing.Size(75, 20)
+$lblAppSelect.Location = New-Object System.Drawing.Point(15, 24)
+$lblAppSelect.Size = New-Object System.Drawing.Size(72, 20)
 $grpApp.Controls.Add($lblAppSelect)
 
 $cmbApps = New-Object System.Windows.Forms.ComboBox
-$cmbApps.Location = New-Object System.Drawing.Point(90, 22)
-$cmbApps.Size = New-Object System.Drawing.Size(235, 26)
+$cmbApps.Location = New-Object System.Drawing.Point(88, 20)
+$cmbApps.Size = New-Object System.Drawing.Size(232, 26)
 $cmbApps.DropDownStyle = "DropDownList"
 $cmbApps.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 45)
 $cmbApps.ForeColor = [System.Drawing.Color]::White
@@ -927,8 +858,8 @@ $grpApp.Controls.Add($cmbApps)
 
 $btnAppMute = New-Object System.Windows.Forms.Button
 $btnAppMute.Text = "消音"
-$btnAppMute.Location = New-Object System.Drawing.Point(332, 20)
-$btnAppMute.Size = New-Object System.Drawing.Size(64, 28)
+$btnAppMute.Location = New-Object System.Drawing.Point(328, 18)
+$btnAppMute.Size = New-Object System.Drawing.Size(62, 28)
 $btnAppMute.FlatStyle = "Flat"
 $btnAppMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
 $btnAppMute.ForeColor = [System.Drawing.Color]::White
@@ -936,7 +867,7 @@ $grpApp.Controls.Add($btnAppMute)
 
 $btnRefresh = New-Object System.Windows.Forms.Button
 $btnRefresh.Text = "更新"
-$btnRefresh.Location = New-Object System.Drawing.Point(401, 20)
+$btnRefresh.Location = New-Object System.Drawing.Point(396, 18)
 $btnRefresh.Size = New-Object System.Drawing.Size(54, 28)
 $btnRefresh.FlatStyle = "Flat"
 $btnRefresh.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
@@ -944,15 +875,15 @@ $btnRefresh.ForeColor = [System.Drawing.Color]::White
 $grpApp.Controls.Add($btnRefresh)
 
 $lblAppVal = New-Object System.Windows.Forms.Label
-$lblAppVal.Location = New-Object System.Drawing.Point(15, 62)
-$lblAppVal.Size = New-Object System.Drawing.Size(440, 24)
+$lblAppVal.Location = New-Object System.Drawing.Point(15, 56)
+$lblAppVal.Size = New-Object System.Drawing.Size(435, 24)
 $lblAppVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblAppVal.ForeColor = [System.Drawing.Color]::White
 $grpApp.Controls.Add($lblAppVal)
 
 $trackApp = New-Object System.Windows.Forms.TrackBar
-$trackApp.Location = New-Object System.Drawing.Point(10, 92)
-$trackApp.Size = New-Object System.Drawing.Size(450, 45)
+$trackApp.Location = New-Object System.Drawing.Point(10, 84)
+$trackApp.Size = New-Object System.Drawing.Size(445, 45)
 $trackApp.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackApp.Maximum = 0    # 0 dB
 $trackApp.TickFrequency = 10
@@ -961,14 +892,14 @@ $grpApp.Controls.Add($trackApp)
 # アプリ微小音量プリセット
 $lblPresetHint = New-Object System.Windows.Forms.Label
 $lblPresetHint.Text = "★ 微小音量プリセット (Windows標準の1%以下の世界):"
-$lblPresetHint.Location = New-Object System.Drawing.Point(15, 145)
-$lblPresetHint.Size = New-Object System.Drawing.Size(440, 22)
+$lblPresetHint.Location = New-Object System.Drawing.Point(15, 134)
+$lblPresetHint.Size = New-Object System.Drawing.Size(435, 20)
 $lblPresetHint.ForeColor = [System.Drawing.Color]::FromArgb(255, 220, 120)
 $grpApp.Controls.Add($lblPresetHint)
 
 $pnlAppPresets = New-Object System.Windows.Forms.Panel
-$pnlAppPresets.Location = New-Object System.Drawing.Point(10, 170)
-$pnlAppPresets.Size = New-Object System.Drawing.Size(450, 50)
+$pnlAppPresets.Location = New-Object System.Drawing.Point(10, 156)
+$pnlAppPresets.Size = New-Object System.Drawing.Size(445, 48)
 
 $appPresets = @(
     @{ Text = "-60dB (0.1%)";  Db = -60.0 },
@@ -981,8 +912,8 @@ $ax = 0
 foreach ($p in $appPresets) {
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $p.Text
-    $btn.Size = New-Object System.Drawing.Size(86, 38)
-    $btn.Location = New-Object System.Drawing.Point($ax, 5)
+    $btn.Size = New-Object System.Drawing.Size(85, 36)
+    $btn.Location = New-Object System.Drawing.Point($ax, 4)
     $btn.FlatStyle = "Flat"
     $btn.BackColor = [System.Drawing.Color]::FromArgb(35, 50, 40)
     $btn.ForeColor = [System.Drawing.Color]::FromArgb(180, 255, 200)
@@ -998,15 +929,91 @@ $grpApp.Controls.Add($pnlAppPresets)
 
 $lblNote = New-Object System.Windows.Forms.Label
 $lblNote.Text = "※「全アプリ一括適用」を選択した場合、操作した瞬間に全セッションへ反映されます。"
-$lblNote.Location = New-Object System.Drawing.Point(15, 230)
-$lblNote.Size = New-Object System.Drawing.Size(440, 35)
+$lblNote.Location = New-Object System.Drawing.Point(15, 210)
+$lblNote.Size = New-Object System.Drawing.Size(435, 55)
 $lblNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 150, 150)
 $lblNote.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpApp.Controls.Add($lblNote)
 
 $form.Controls.Add($grpApp)
 
-# --- UI更新 ---
+# ==========================================
+# 3. マイク音量グループ (入力) ※順序入れ替え
+# ==========================================
+$grpMic = New-Object System.Windows.Forms.GroupBox
+$grpMic.Text = " 3. マイク音量 (入力) "
+$grpMic.Location = New-Object System.Drawing.Point(15, 507)
+$grpMic.Size = New-Object System.Drawing.Size(465, 175)
+$grpMic.ForeColor = [System.Drawing.Color]::FromArgb(255, 210, 160)
+
+$lblMicName = New-Object System.Windows.Forms.Label
+$lblMicName.Location = New-Object System.Drawing.Point(15, 20)
+$lblMicName.Size = New-Object System.Drawing.Size(320, 18)
+$lblMicName.ForeColor = [System.Drawing.Color]::FromArgb(200, 200, 200)
+$lblMicName.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
+$grpMic.Controls.Add($lblMicName)
+
+$lblMicVal = New-Object System.Windows.Forms.Label
+$lblMicVal.Location = New-Object System.Drawing.Point(15, 38)
+$lblMicVal.Size = New-Object System.Drawing.Size(320, 24)
+$lblMicVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblMicVal.ForeColor = [System.Drawing.Color]::White
+$grpMic.Controls.Add($lblMicVal)
+
+$btnMicMute = New-Object System.Windows.Forms.Button
+$btnMicMute.Location = New-Object System.Drawing.Point(345, 22)
+$btnMicMute.Size = New-Object System.Drawing.Size(105, 30)
+$btnMicMute.FlatStyle = "Flat"
+$btnMicMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
+$btnMicMute.ForeColor = [System.Drawing.Color]::White
+$grpMic.Controls.Add($btnMicMute)
+
+$trackMic = New-Object System.Windows.Forms.TrackBar
+$trackMic.Location = New-Object System.Drawing.Point(10, 66)
+$trackMic.Size = New-Object System.Drawing.Size(445, 45)
+$trackMic.Minimum = 0   # 0 %
+$trackMic.Maximum = 100 # 100 %
+$trackMic.TickFrequency = 10
+$grpMic.Controls.Add($trackMic)
+
+# マイクプリセット
+$pnlMicPresets = New-Object System.Windows.Forms.Panel
+$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 116)
+$pnlMicPresets.Size = New-Object System.Drawing.Size(445, 48)
+
+$micPresets = @(
+    @{ Text = "0% (消音)"; Scalar = 0.00 },
+    @{ Text = "25%";       Scalar = 0.25 },
+    @{ Text = "50%";       Scalar = 0.50 },
+    @{ Text = "75%";       Scalar = 0.75 },
+    @{ Text = "100%";      Scalar = 1.00 }
+)
+$ux = 0
+foreach ($p in $micPresets) {
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = $p.Text
+    $btn.Size = New-Object System.Drawing.Size(85, 34)
+    $btn.Location = New-Object System.Drawing.Point($ux, 4)
+    $btn.FlatStyle = "Flat"
+    $btn.BackColor = [System.Drawing.Color]::FromArgb(50, 45, 40)
+    $btn.ForeColor = [System.Drawing.Color]::FromArgb(240, 220, 200)
+    $targetScalar = $p.Scalar
+    $btn.Add_Click({
+        [LogVolumeApp.CoreAudio]::SetMicScalar($targetScalar)
+        UpdateMicUI
+    }.GetNewClosure())
+    $pnlMicPresets.Controls.Add($btn)
+    $ux += 90
+}
+$grpMic.Controls.Add($pnlMicPresets)
+$form.Controls.Add($grpMic)
+
+# フォームのクライアントサイズを底辺マージン15pxに合わせて設定（下の無駄なスペースを完全解消）
+$form.ClientSize = New-Object System.Drawing.Size(495, 697)
+
+# ==========================================
+# UI更新ロジック
+# ==========================================
 function UpdateMasterUI {
     $db = [LogVolumeApp.CoreAudio]::GetMasterDb()
     $scalar = [LogVolumeApp.CoreAudio]::GetMasterScalar()
@@ -1016,7 +1023,9 @@ function UpdateMasterUI {
     $val = [int]($db * 2)
     if ($val -lt -120) { $val = -120 }
     if ($val -gt 0) { $val = 0 }
-    if ($trackMaster.Value -ne $val) { $trackMaster.Value = $val }
+    if ($trackMaster.Value -ne $val) {
+        $trackMaster.Value = $val
+    }
 
     $mute = [LogVolumeApp.CoreAudio]::GetMasterMute()
     $btnMasterMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
@@ -1025,8 +1034,8 @@ function UpdateMasterUI {
 
 function UpdateMicUI {
     if (-not [LogVolumeApp.CoreAudio]::IsMicAvailable()) {
-        $lblMicName.Text = "マイク未接続"
-        $lblMicVal.Text = "未接続"
+        $lblMicName.Text = "デバイス: 未検出"
+        $lblMicVal.Text = "マイクが接続されていません"
         $btnMicMute.Enabled = $false
         $trackMic.Enabled = $false
         $pnlMicPresets.Enabled = $false
@@ -1038,16 +1047,16 @@ function UpdateMicUI {
     $pnlMicPresets.Enabled = $true
 
     $micName = [LogVolumeApp.CoreAudio]::GetMicDeviceName()
-    $lblMicName.Text = $micName
+    $lblMicName.Text = "デバイス: $micName"
 
     $scalar = [LogVolumeApp.CoreAudio]::GetMicScalar()
     $db = [LogVolumeApp.CoreAudio]::GetMicDb()
-    $pct = [math]::Round($scalar * 100, 1)
-    $dbSign = if ($db -ge 0) { "+" + ([math]::Round($db, 1)) } else { "" + ([math]::Round($db, 1)) }
+    $pct = [int][math]::Round($scalar * 100)
+    $dbSign = if ($db -ge 0) { "+{0}" -f [math]::Round($db, 1) } else { "{0}" -f [math]::Round($db, 1) }
     $lblMicVal.Text = "現在: {0}% ({1} dB)" -f $pct, $dbSign
 
-    if ($trackMic.Value -ne [int]($scalar * 100)) {
-        $trackMic.Value = [int]($scalar * 100)
+    if ($trackMic.Value -ne $pct) {
+        $trackMic.Value = $pct
     }
 
     $mute = [LogVolumeApp.CoreAudio]::GetMicMute()
@@ -1056,7 +1065,7 @@ function UpdateMicUI {
 }
 
 function UpdateAppMuteButton($mute) {
-    $btnAppMute.Text = if ($mute) { "解除" } else { "消音" }
+    $btnAppMute.Text = if ($mute) { "消音中" } else { "消音" }
     $btnAppMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
 }
 
@@ -1119,7 +1128,13 @@ function UpdateAppUIFromSelection {
     $muted = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
     $pct = [math]::Round($scalar * 100, 1)
     $lblAppVal.Text = "{0}: {1} dB ({2}%)" -f $sel.DisplayName, ([math]::Round($db, 1)), $pct
-    $trackApp.Value = [int]($db * 2)
+    
+    $val = [int]($db * 2)
+    if ($val -lt -120) { $val = -120 }
+    if ($val -gt 0) { $val = 0 }
+    if ($trackApp.Value -ne $val) {
+        $trackApp.Value = $val
+    }
     UpdateAppMuteButton $muted
 }
 
@@ -1141,11 +1156,16 @@ function ApplyAppVolumeFromTrackbar {
     $lblAppVal.Text = "{0}: {1} dB ({2}%)" -f $sel.DisplayName, ([math]::Round($db, 1)), $pct
 }
 
-# --- イベントハンドラ ---
+# ==========================================
+# イベントハンドラ
+# ==========================================
+# スライダー操作時はトラックバーを強制上書きせず、音量設定とラベル更新のみ行う（ジッター防止）
 $trackMaster.Add_Scroll({
     $db = $trackMaster.Value / 2.0
     [LogVolumeApp.CoreAudio]::SetMasterDb($db)
-    UpdateMasterUI
+    $scalar = [LogVolumeApp.CoreAudio]::GetMasterScalar()
+    $pct = [math]::Round($scalar * 100, 1)
+    $lblMasterVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
 })
 
 $btnMasterMute.Add_Click({
@@ -1154,16 +1174,8 @@ $btnMasterMute.Add_Click({
     UpdateMasterUI
 })
 
-$trackMic.Add_Scroll({
-    $scalar = $trackMic.Value / 100.0
-    [LogVolumeApp.CoreAudio]::SetMicScalar($scalar)
-    UpdateMicUI
-})
-
-$btnMicMute.Add_Click({
-    $mute = [LogVolumeApp.CoreAudio]::GetMicMute()
-    [LogVolumeApp.CoreAudio]::SetMicMute(-not $mute)
-    UpdateMicUI
+$trackApp.Add_Scroll({
+    ApplyAppVolumeFromTrackbar
 })
 
 $btnAppMute.Add_Click({
@@ -1182,10 +1194,52 @@ $btnAppMute.Add_Click({
     UpdateAppUIFromSelection
 })
 
-$btnRefresh.Add_Click({ RefreshAppList })
+$btnRefresh.Add_Click({
+    RefreshAppList
+})
 
-$cmbApps.Add_SelectedIndexChanged({ UpdateAppUIFromSelection })
-$trackApp.Add_Scroll({ ApplyAppVolumeFromTrackbar })
+$cmbApps.Add_SelectedIndexChanged({
+    UpdateAppUIFromSelection
+})
+
+$trackMic.Add_Scroll({
+    $scalar = $trackMic.Value / 100.0
+    [LogVolumeApp.CoreAudio]::SetMicScalar($scalar)
+    $db = [LogVolumeApp.CoreAudio]::GetMicDb()
+    $dbSign = if ($db -ge 0) { "+{0}" -f [math]::Round($db, 1) } else { "{0}" -f [math]::Round($db, 1) }
+    $lblMicVal.Text = "現在: {0}% ({1} dB)" -f $trackMic.Value, $dbSign
+})
+
+$btnMicMute.Add_Click({
+    $mute = [LogVolumeApp.CoreAudio]::GetMicMute()
+    [LogVolumeApp.CoreAudio]::SetMicMute(-not $mute)
+    UpdateMicUI
+})
+
+# ==========================================
+# 外部変更の自動同期タイマー (リアルタイム追従)
+# ==========================================
+$timerSync = New-Object System.Windows.Forms.Timer
+$timerSync.Interval = 1000
+$timerSync.Add_Tick({
+    # ユーザーがマウスドラッグ操作中でない場合のみ更新
+    if ([System.Windows.Forms.Control]::MouseButtons -eq [System.Windows.Forms.MouseButtons]::None) {
+        UpdateMasterUI
+        UpdateMicUI
+
+        $sel = $cmbApps.SelectedItem
+        if ($sel -ne $null -and $sel.ProcessId -ne -1) {
+            $mute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
+            UpdateAppMuteButton $mute
+        }
+    }
+})
+$timerSync.Start()
+
+$form.Add_FormClosing({
+    $timerSync.Stop()
+    $timerSync.Dispose()
+})
 
 # 初期化
 UpdateMasterUI
@@ -1193,4 +1247,4 @@ UpdateMicUI
 RefreshAppList
 
 # フォーム表示
-$form.ShowDialog()
+[System.Windows.Forms.Application]::Run($form)
