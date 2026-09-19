@@ -1344,7 +1344,7 @@ $form.Controls.Add($grpMaster)
 $grpApp = New-Object System.Windows.Forms.GroupBox
 $grpApp.Text = " 2. アプリケーション音量 (対数・微小調整) "
 $grpApp.Location = New-Object System.Drawing.Point(15, 222)
-$grpApp.Size = New-Object System.Drawing.Size(465, 275)
+$grpApp.Size = New-Object System.Drawing.Size(465, 234)
 $grpApp.ForeColor = $cGrpApp
 
 $lblAppSelect = New-Object System.Windows.Forms.Label
@@ -1443,8 +1443,8 @@ $grpApp.Controls.Add($pnlAppPresets)
 
 $lblNote = New-Object System.Windows.Forms.Label
 $lblNote.Text = "※「全アプリ一括適用」時は新規起動アプリにも自動で本音量が適用されます。"
-$lblNote.Location = New-Object System.Drawing.Point(15, 210)
-$lblNote.Size = New-Object System.Drawing.Size(435, 55)
+$lblNote.Location = New-Object System.Drawing.Point(15, 206)
+$lblNote.Size = New-Object System.Drawing.Size(435, 18)
 $lblNote.ForeColor = $cNote
 $lblNote.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpApp.Controls.Add($lblNote)
@@ -1456,7 +1456,7 @@ $form.Controls.Add($grpApp)
 # ==========================================
 $grpMic = New-Object System.Windows.Forms.GroupBox
 $grpMic.Text = " 3. マイク音量 (入力) "
-$grpMic.Location = New-Object System.Drawing.Point(15, 507)
+$grpMic.Location = New-Object System.Drawing.Point(15, 465)
 $grpMic.Size = New-Object System.Drawing.Size(465, 175)
 $grpMic.ForeColor = $cGrpMic
 
@@ -1531,14 +1531,14 @@ $grpMic.Controls.Add($pnlMicPresets)
 $form.Controls.Add($grpMic)
 
 # フォームのクライアントサイズを底辺マージン15pxに合わせて設定（下の無駄なスペースを完全解消）
-$form.ClientSize = New-Object System.Drawing.Size(495, 868)
+$form.ClientSize = New-Object System.Drawing.Size(495, 822)
 
 # ==========================================
 # 4. ダイレクトモニタリング (Earthworks Icon)
 # ==========================================
 $grpSidetone = New-Object System.Windows.Forms.GroupBox
 $grpSidetone.Text = " 4. ダイレクトモニタリング (Earthworks Icon) "
-$grpSidetone.Location = New-Object System.Drawing.Point(15, 692)
+$grpSidetone.Location = New-Object System.Drawing.Point(15, 649)
 $grpSidetone.Size = New-Object System.Drawing.Size(465, 158)
 $grpSidetone.ForeColor = $cGrpMic
 
