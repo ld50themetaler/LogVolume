@@ -701,11 +701,12 @@ namespace LogVolumeApp {
                             friendlyName = "システム音 (System Sounds)";
                         } else {
                             try {
-                                var proc = Process.GetProcessById(pid);
-                                if (!string.IsNullOrEmpty(proc.MainWindowTitle)) {
-                                    friendlyName = string.Format("{0} ({1})", proc.MainWindowTitle, proc.ProcessName);
-                                } else {
-                                    friendlyName = proc.ProcessName;
+                                using (var proc = Process.GetProcessById(pid)) {
+                                    if (!string.IsNullOrEmpty(proc.MainWindowTitle)) {
+                                        friendlyName = string.Format("{0} ({1})", proc.MainWindowTitle, proc.ProcessName);
+                                    } else {
+                                        friendlyName = proc.ProcessName;
+                                    }
                                 }
                             } catch {
                                 friendlyName = "プロセス " + pid;
@@ -772,6 +773,7 @@ namespace LogVolumeApp {
                 int count;
                 sessionEnum.GetCount(out count);
 
+                float fallbackVol = -1.0f;
                 for (int i = 0; i < count; i++) {
                     IAudioSessionControl2 ctl = null;
                     try {
@@ -781,11 +783,14 @@ namespace LogVolumeApp {
                         int pid = 0;
                         ctl.GetProcessId(out pid);
 
-                        if (targetPid == -1 || pid == targetPid) {
-                            var sv = ctl as ISimpleAudioVolume;
-                            if (sv != null) {
-                                float vol;
-                                sv.GetMasterVolume(out vol);
+                        var sv = ctl as ISimpleAudioVolume;
+                        if (sv != null) {
+                            float vol;
+                            sv.GetMasterVolume(out vol);
+                            if (targetPid == -1) {
+                                if (pid > 0) return vol; // ユーザーアプリの音量を最優先
+                                if (fallbackVol < 0f) fallbackVol = vol;
+                            } else if (pid == targetPid) {
                                 return vol;
                             }
                         }
@@ -793,7 +798,7 @@ namespace LogVolumeApp {
                         if (ctl != null) Marshal.ReleaseComObject(ctl);
                     }
                 }
-                return 1.0f;
+                return fallbackVol >= 0f ? fallbackVol : 1.0f;
             } catch { return 1.0f; }
             finally {
                 if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
@@ -934,6 +939,7 @@ namespace LogVolumeApp {
                 int count;
                 sessionEnum.GetCount(out count);
 
+                bool fallbackMute = false;
                 for (int i = 0; i < count; i++) {
                     IAudioSessionControl2 ctl = null;
                     try {
@@ -943,11 +949,14 @@ namespace LogVolumeApp {
                         int pid = 0;
                         ctl.GetProcessId(out pid);
 
-                        if (targetPid == -1 || pid == targetPid) {
-                            var sv = ctl as ISimpleAudioVolume;
-                            if (sv != null) {
-                                bool mute;
-                                sv.GetMute(out mute);
+                        var sv = ctl as ISimpleAudioVolume;
+                        if (sv != null) {
+                            bool mute;
+                            sv.GetMute(out mute);
+                            if (targetPid == -1) {
+                                if (pid > 0) return mute; // ユーザーアプリのミュート状態を最優先
+                                fallbackMute = mute;
+                            } else if (pid == targetPid) {
                                 return mute;
                             }
                         }
@@ -955,7 +964,7 @@ namespace LogVolumeApp {
                         if (ctl != null) Marshal.ReleaseComObject(ctl);
                     }
                 }
-                return false;
+                return fallbackMute;
             } catch { return false; }
             finally {
                 if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
@@ -1168,14 +1177,14 @@ namespace LogVolumeApp {
                             if (meter != null) {
                                 float peak = 0f;
                                 meter.GetPeakValue(out peak);
-                                return peak;
+                                if (peak > maxPeak) maxPeak = peak;
                             }
                         }
                     } finally {
                         if (ctl != null) Marshal.ReleaseComObject(ctl);
                     }
                 }
-                return (targetPid == -1) ? maxPeak : 0f;
+                return maxPeak;
             } catch { return 0f; }
             finally {
                 if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
@@ -1262,8 +1271,55 @@ $chkTopMost.Text = "常に最前面に表示"
 $chkTopMost.Checked = $true
 $chkTopMost.Location = New-Object System.Drawing.Point(20, 12)
 $chkTopMost.AutoSize = $true
-$chkTopMost.Add_CheckedChanged({ $form.TopMost = $chkTopMost.Checked })
+$chkTopMost.Add_CheckedChanged({
+    $form.TopMost = $chkTopMost.Checked
+    SaveAppSettings
+})
 $form.Controls.Add($chkTopMost)
+
+# ==========================================
+# 設定永続化の管理 (%APPDATA%\LogVolume\settings.json)
+# ==========================================
+$script:configDir = [System.IO.Path]::Combine($env:APPDATA, "LogVolume")
+$script:configFile = [System.IO.Path]::Combine($script:configDir, "settings.json")
+$script:allAppsDb = -34.0   # デフォルト微小音量: -34 dB (2%)
+$script:allAppsMuted = $false
+
+function SaveAppSettings {
+    try {
+        if (-not [System.IO.Directory]::Exists($script:configDir)) {
+            [void][System.IO.Directory]::CreateDirectory($script:configDir)
+        }
+        $data = @{
+            AllAppsVolumeDb = $script:allAppsDb
+            AllAppsMuted    = $script:allAppsMuted
+            TopMost         = $chkTopMost.Checked
+        }
+        $json = $data | ConvertTo-Json
+        [System.IO.File]::WriteAllText($script:configFile, $json, [System.Text.Encoding]::UTF8)
+    } catch {}
+}
+
+function LoadAppSettings {
+    try {
+        if ([System.IO.File]::Exists($script:configFile)) {
+            $json = [System.IO.File]::ReadAllText($script:configFile, [System.Text.Encoding]::UTF8)
+            $data = $json | ConvertFrom-Json
+            if ($null -ne $data.AllAppsVolumeDb) {
+                $script:allAppsDb = [double]$data.AllAppsVolumeDb
+            }
+            if ($null -ne $data.AllAppsMuted) {
+                $script:allAppsMuted = [bool]$data.AllAppsMuted
+            }
+            if ($null -ne $data.TopMost -and $null -ne $chkTopMost) {
+                $chkTopMost.Checked = [bool]$data.TopMost
+                $form.TopMost = [bool]$data.TopMost
+            }
+            return $true
+        }
+    } catch {}
+    return $false
+}
 
 # ==========================================
 # 1. マスター音量グループ (全体 / 出力)
@@ -1392,6 +1448,7 @@ $trackApp.Size = New-Object System.Drawing.Size(445, 40)
 $trackApp.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackApp.Maximum = 0    # 0 dB
 $trackApp.TickFrequency = 10
+$trackApp.Value = [int]($script:allAppsDb * 2)
 $grpApp.Controls.Add($trackApp)
 
 $meterApp = New-Object LogVolumeApp.AudioMeterBar
@@ -1718,9 +1775,10 @@ function RefreshAppList {
     $allItem = New-Object LogVolumeApp.AppSessionItem
     $allItem.ProcessId = -1
     $allItem.DisplayName = "全アプリ一括適用"
-    $allItem.VolumeScalar = 1.0
-    $allItem.VolumeDb = 0.0
-    $allItem.IsMuted = $false
+    $allScalar = [math]::Pow(10.0, $script:allAppsDb / 20.0)
+    $allItem.VolumeScalar = [float]$allScalar
+    $allItem.VolumeDb = [float]$script:allAppsDb
+    $allItem.IsMuted = $script:allAppsMuted
     [void]$cmbApps.Items.Add($allItem)
 
     $sessions = [LogVolumeApp.CoreAudio]::GetSessions()
@@ -1750,11 +1808,16 @@ function UpdateAppUIFromSelection {
     if ($sel -eq $null) { return }
 
     if ($sel.ProcessId -eq -1) {
-        $db = $trackApp.Value / 2.0
-        $scalar = [math]::Pow(10.0, $db / 20.0)
+        $val = [int]($script:allAppsDb * 2)
+        if ($val -lt -120) { $val = -120 }
+        if ($val -gt 0) { $val = 0 }
+        if ($trackApp.Value -ne $val) {
+            $trackApp.Value = $val
+        }
+        $scalar = [math]::Pow(10.0, $script:allAppsDb / 20.0)
         $pct = [math]::Round($scalar * 100, 1)
-        $lblAppVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
-        UpdateAppMuteButton $false
+        $lblAppVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($script:allAppsDb, 1)), $pct
+        UpdateAppMuteButton $script:allAppsMuted
         return
     }
 
@@ -1782,6 +1845,8 @@ function ApplyAppVolumeFromTrackbar {
     if ($sel -eq $null) { return }
 
     if ($sel.ProcessId -eq -1) {
+        $script:allAppsDb = $db
+        SaveAppSettings
         [LogVolumeApp.CoreAudio]::SetSessionScalar(-1, $scalar)
         $lblAppVal.Text = "現在: {0} dB ({1}%)" -f ([math]::Round($db, 1)), $pct
         return
@@ -1818,8 +1883,9 @@ $btnAppMute.Add_Click({
     if ($sel -eq $null) { return }
 
     if ($sel.ProcessId -eq -1) {
-        $allMute = [LogVolumeApp.CoreAudio]::GetSessionMute(-1)
-        [LogVolumeApp.CoreAudio]::SetSessionMute(-1, -not $allMute)
+        $script:allAppsMuted = -not $script:allAppsMuted
+        SaveAppSettings
+        [LogVolumeApp.CoreAudio]::SetSessionMute(-1, $script:allAppsMuted)
         UpdateAppUIFromSelection
         return
     }
@@ -1879,10 +1945,9 @@ $timerSync.Add_Tick({
                 # 「全アプリ一括適用」が選択されている場合は、現在の設定音量を即時適用
                 $sel = $cmbApps.SelectedItem
                 if ($sel -ne $null -and $sel.ProcessId -eq -1) {
-                    $db = $trackApp.Value / 2.0
-                    [LogVolumeApp.CoreAudio]::SetSessionDb($s.ProcessId, $db)
+                    [LogVolumeApp.CoreAudio]::SetSessionDb($s.ProcessId, $script:allAppsDb)
 
-                    if ($btnAppMute.Text -eq "消音中") {
+                    if ($script:allAppsMuted) {
                         [LogVolumeApp.CoreAudio]::SetSessionMute($s.ProcessId, $true)
                     }
                 }
@@ -1906,10 +1971,25 @@ $timerSync.Add_Tick({
             RefreshAppList
         }
 
+        # アプリ音量・ミュートの外部同期
         $sel = $cmbApps.SelectedItem
-        if ($sel -ne $null -and $sel.ProcessId -ne -1) {
-            $mute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
-            UpdateAppMuteButton $mute
+        if ($sel -ne $null) {
+            if ($sel.ProcessId -eq -1) {
+                UpdateAppMuteButton $script:allAppsMuted
+            } else {
+                $mute = [LogVolumeApp.CoreAudio]::GetSessionMute($sel.ProcessId)
+                UpdateAppMuteButton $mute
+                $db = [LogVolumeApp.CoreAudio]::GetSessionDb($sel.ProcessId)
+                $scalar = [LogVolumeApp.CoreAudio]::GetSessionScalar($sel.ProcessId)
+                $pct = [math]::Round($scalar * 100, 1)
+                $lblAppVal.Text = "{0}: {1} dB ({2}%)" -f $sel.DisplayName, ([math]::Round($db, 1)), $pct
+                $val = [int]($db * 2)
+                if ($val -lt -120) { $val = -120 }
+                if ($val -gt 0) { $val = 0 }
+                if ($trackApp.Value -ne $val) {
+                    $trackApp.Value = $val
+                }
+            }
         }
     }
 })
@@ -1938,13 +2018,27 @@ $timerMeter.Add_Tick({
 $timerMeter.Start()
 
 $form.Add_FormClosing({
+    SaveAppSettings
     $timerSync.Stop()
     $timerSync.Dispose()
     $timerMeter.Stop()
     $timerMeter.Dispose()
 })
 
-# 初期化
+# 設定読み込み & 初期化
+$loaded = LoadAppSettings
+if (-not $loaded) {
+    # 設定ファイルがまだない場合、既存の通常アプリセッション(pid > 0)があればその音量を初期値として採用
+    $existingScalar = [LogVolumeApp.CoreAudio]::GetSessionScalar(-1)
+    if ($existingScalar -gt 0.0001 -and $existingScalar -lt 0.999) {
+        $existingDb = [LogVolumeApp.CoreAudio]::GetSessionDb(-1)
+        if ($existingDb -le 0 -and $existingDb -ge -60) {
+            $script:allAppsDb = $existingDb
+        }
+    }
+}
+$trackApp.Value = [int]($script:allAppsDb * 2)
+
 UpdateMasterUI
 UpdateMicUI
 UpdateSidetoneUI
