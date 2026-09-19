@@ -131,13 +131,15 @@ Windows 標準の音量スライダー（0〜100%）はリニアに近いカー�
 
 ```text
 LogVolume/
+├── LICENSE         # MIT License
 ├── LogVolume.bat   # 起動用バッチスクリプト (-NoProfile, -STA 指定)
 ├── LogVolume.ps1   # メインスクリプト (WinForms UI & Core Audio COM 実装)
-└── README.md       # 本ドキュメント
+├── README.md       # 本ドキュメント
+└── screenshot.png  # アプリケーションスクリーンショット
 ```
 
 ---
 
 ## ライセンス
 
-本プロジェクトはオープンソース（MIT License）です。自由にご利用・改変いただけます。
+本プロジェクトは [MIT License](LICENSE) のもとで公開されています。自由にご利用・改変いただけます。
