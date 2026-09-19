@@ -107,9 +107,9 @@ Windows 向け **対数音量ミキサー (Logarithmic Volume Mixer)**
 ## 使い方
 
 1. 本リポジトリをダウンロード（または `git clone`）。
-2. **`LogVolume.bat`** をダブルクリックして実行します。
-   - コンソール画面を出さずにバックグラウンドで起動します。
-   - スタートアップやタスクバーにショートカットを作成しておくと便利です。
+2. **`LogVolume.vbs`**（または **`LogVolume.bat`**）をダブルクリックして実行します。
+   - 黒いコマンドプロンプト（コンソール）画面を一切出さず、完全バックグラウンドで起動します。
+   - スタートアップやタスクバー・デスクトップにショートカットを作成しておくと便利です。
 
 ---
 
@@ -132,8 +132,9 @@ Windows 標準の音量スライダー（0〜100%）はリニアに近いカー�
 ```text
 LogVolume/
 ├── LICENSE         # MIT License
-├── LogVolume.bat   # 起動用バッチスクリプト (-NoProfile, -STA 指定)
+├── LogVolume.bat   # 起動用バッチスクリプト (wscript経由で非表示起動)
 ├── LogVolume.ps1   # メインスクリプト (WinForms UI & Core Audio COM 実装)
+├── LogVolume.vbs   # 完全サイレント起動用スクリプト (黒い画面ゼロ)
 ├── README.md       # 本ドキュメント
 └── screenshot.png  # アプリケーションスクリーンショット
 ```

@@ -343,6 +343,12 @@ namespace LogVolumeApp {
     }
 
     public static class CoreAudio {
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
         private static IMMDevice GetDefaultRenderEndpoint(out IMMDeviceEnumerator enumerator) {
             enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
             IMMDevice dev = null;
@@ -1236,6 +1242,12 @@ namespace LogVolumeApp {
 "@
 
 Add-Type -TypeDefinition $csharp -ReferencedAssemblies System.Windows.Forms, System.Drawing
+
+# コンソールウィンドウが存在する場合は即座に非表示化 (SW_HIDE = 0)
+$consoleHwnd = [LogVolumeApp.CoreAudio]::GetConsoleWindow()
+if ($consoleHwnd -ne [System.IntPtr]::Zero) {
+    [void][LogVolumeApp.CoreAudio]::ShowWindow($consoleHwnd, 0)
+}
 
 # --- GUI構築 ---
 # --- テーマ判定 ---

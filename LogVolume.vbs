@@ -1,0 +1,2 @@
+Set ws = CreateObject("Wscript.Shell")
+ws.Run "powershell -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & Replace(WScript.ScriptFullName, WScript.ScriptName, "") & "LogVolume.ps1""", 0, False
