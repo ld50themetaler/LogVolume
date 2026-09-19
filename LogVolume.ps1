@@ -1354,7 +1354,7 @@ $trackMaster.TickFrequency = 10
 $grpMaster.Controls.Add($trackMaster)
 
 $meterMaster = New-Object LogVolumeApp.AudioMeterBar
-$meterMaster.Location = New-Object System.Drawing.Point(18, 94)
+$meterMaster.Location = New-Object System.Drawing.Point(18, 95)
 $meterMaster.Size = New-Object System.Drawing.Size(430, 20)
 $meterMaster.BgColor = $cMeterBg
 $meterMaster.TextColor = $cMeterText
@@ -1436,15 +1436,15 @@ $btnRefresh.ForeColor = $cBtnFg
 $grpApp.Controls.Add($btnRefresh)
 
 $lblAppVal = New-Object System.Windows.Forms.Label
-$lblAppVal.Location = New-Object System.Drawing.Point(15, 52)
-$lblAppVal.Size = New-Object System.Drawing.Size(435, 22)
+$lblAppVal.Location = New-Object System.Drawing.Point(15, 48)
+$lblAppVal.Size = New-Object System.Drawing.Size(435, 20)
 $lblAppVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblAppVal.ForeColor = $cFormFg
 $grpApp.Controls.Add($lblAppVal)
 
 $trackApp = New-Object System.Windows.Forms.TrackBar
-$trackApp.Location = New-Object System.Drawing.Point(10, 74)
-$trackApp.Size = New-Object System.Drawing.Size(445, 40)
+$trackApp.Location = New-Object System.Drawing.Point(10, 68)
+$trackApp.Size = New-Object System.Drawing.Size(445, 45)
 $trackApp.Minimum = -120 # -60 dB (0.5 dB刻み)
 $trackApp.Maximum = 0    # 0 dB
 $trackApp.TickFrequency = 10
@@ -1452,7 +1452,7 @@ $trackApp.Value = [int]($script:allAppsDb * 2)
 $grpApp.Controls.Add($trackApp)
 
 $meterApp = New-Object LogVolumeApp.AudioMeterBar
-$meterApp.Location = New-Object System.Drawing.Point(18, 114)
+$meterApp.Location = New-Object System.Drawing.Point(18, 115)
 $meterApp.Size = New-Object System.Drawing.Size(430, 20)
 $meterApp.BgColor = $cMeterBg
 $meterApp.TextColor = $cMeterText
@@ -1463,7 +1463,7 @@ $grpApp.Controls.Add($meterApp)
 # アプリ微小音量プリセット
 $lblPresetHint = New-Object System.Windows.Forms.Label
 $lblPresetHint.Text = "★ 微小音量プリセット (Windows標準の1%以下の世界):"
-$lblPresetHint.Location = New-Object System.Drawing.Point(15, 138)
+$lblPresetHint.Location = New-Object System.Drawing.Point(15, 139)
 $lblPresetHint.Size = New-Object System.Drawing.Size(435, 18)
 $lblPresetHint.ForeColor = $cPresetHint
 $grpApp.Controls.Add($lblPresetHint)
@@ -1525,8 +1525,8 @@ $lblMicName.Font = New-Object System.Drawing.Font("Meiryo UI", 8.25)
 $grpMic.Controls.Add($lblMicName)
 
 $lblMicVal = New-Object System.Windows.Forms.Label
-$lblMicVal.Location = New-Object System.Drawing.Point(15, 38)
-$lblMicVal.Size = New-Object System.Drawing.Size(320, 24)
+$lblMicVal.Location = New-Object System.Drawing.Point(15, 36)
+$lblMicVal.Size = New-Object System.Drawing.Size(320, 22)
 $lblMicVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblMicVal.ForeColor = $cFormFg
 $grpMic.Controls.Add($lblMicVal)
@@ -1540,15 +1540,15 @@ $btnMicMute.ForeColor = $cBtnFg
 $grpMic.Controls.Add($btnMicMute)
 
 $trackMic = New-Object System.Windows.Forms.TrackBar
-$trackMic.Location = New-Object System.Drawing.Point(10, 60)
-$trackMic.Size = New-Object System.Drawing.Size(445, 42)
+$trackMic.Location = New-Object System.Drawing.Point(10, 58)
+$trackMic.Size = New-Object System.Drawing.Size(445, 45)
 $trackMic.Minimum = 0   # 0 %
 $trackMic.Maximum = 100 # 100 %
 $trackMic.TickFrequency = 10
 $grpMic.Controls.Add($trackMic)
 
 $meterMic = New-Object LogVolumeApp.AudioMeterBar
-$meterMic.Location = New-Object System.Drawing.Point(18, 102)
+$meterMic.Location = New-Object System.Drawing.Point(18, 105)
 $meterMic.Size = New-Object System.Drawing.Size(430, 20)
 $meterMic.BgColor = $cMeterBg
 $meterMic.TextColor = $cMeterText
@@ -1557,7 +1557,7 @@ $grpMic.Controls.Add($meterMic)
 
 # マイクプリセット
 $pnlMicPresets = New-Object System.Windows.Forms.Panel
-$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 125)
+$pnlMicPresets.Location = New-Object System.Drawing.Point(10, 127)
 $pnlMicPresets.Size = New-Object System.Drawing.Size(445, 42)
 
 $micPresets = @(
