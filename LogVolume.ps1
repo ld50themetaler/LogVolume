@@ -1603,6 +1603,7 @@ $meterMic.Size = New-Object System.Drawing.Size(430, 20)
 $meterMic.BgColor = $cMeterBg
 $meterMic.TextColor = $cMeterText
 $meterMic.TickColor = $cMeterTick
+$meterMic.IsDbScale = $true
 $grpMic.Controls.Add($meterMic)
 
 # マイクプリセット
