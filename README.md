@@ -1,4 +1,4 @@
-# LogVolume 🔊
+﻿# LogVolume 🔊
 
 Windows 向け **対数音量ミキサー (Logarithmic Volume Mixer)**
 
@@ -63,6 +63,10 @@ Windows 向け **対数音量ミキサー (Logarithmic Volume Mixer)**
 
 ---
 
+## スクリーンショット
+
+![LogVolume Screenshot](screenshot.png)
+
 ## 使い方
 
 1. 本リポジトリをダウンロード（または `git clone`）。
@@ -100,3 +104,4 @@ LogVolume/
 ## ライセンス
 
 本プロジェクトはオープンソース（MIT License）です。自由にご利用・改変いただけます。
+

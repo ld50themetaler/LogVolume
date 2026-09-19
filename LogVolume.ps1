@@ -755,8 +755,8 @@ $form.Text = "LogVolume - 対数音量ミキサー"
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
-$form.BackColor = [System.Drawing.Color]::FromArgb(28, 28, 30)
-$form.ForeColor = [System.Drawing.Color]::White
+$form.BackColor = `$cFormBg
+$form.ForeColor = `$cFormFg
 $form.Font = New-Object System.Drawing.Font("Meiryo UI", 9)
 $form.TopMost = $true
 
@@ -782,15 +782,15 @@ $lblMasterVal = New-Object System.Windows.Forms.Label
 $lblMasterVal.Location = New-Object System.Drawing.Point(15, 24)
 $lblMasterVal.Size = New-Object System.Drawing.Size(320, 24)
 $lblMasterVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
-$lblMasterVal.ForeColor = [System.Drawing.Color]::White
+$lblMasterVal.ForeColor = `$cFormFg
 $grpMaster.Controls.Add($lblMasterVal)
 
 $btnMasterMute = New-Object System.Windows.Forms.Button
 $btnMasterMute.Location = New-Object System.Drawing.Point(345, 18)
 $btnMasterMute.Size = New-Object System.Drawing.Size(105, 30)
 $btnMasterMute.FlatStyle = "Flat"
-$btnMasterMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
-$btnMasterMute.ForeColor = [System.Drawing.Color]::White
+$btnMasterMute.BackColor = `$cBtnBg
+$btnMasterMute.ForeColor = `$cFormFg
 $grpMaster.Controls.Add($btnMasterMute)
 
 $trackMaster = New-Object System.Windows.Forms.TrackBar
@@ -853,7 +853,7 @@ $cmbApps.Location = New-Object System.Drawing.Point(88, 20)
 $cmbApps.Size = New-Object System.Drawing.Size(232, 26)
 $cmbApps.DropDownStyle = "DropDownList"
 $cmbApps.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 45)
-$cmbApps.ForeColor = [System.Drawing.Color]::White
+$cmbApps.ForeColor = `$cFormFg
 $grpApp.Controls.Add($cmbApps)
 
 $btnAppMute = New-Object System.Windows.Forms.Button
@@ -861,8 +861,8 @@ $btnAppMute.Text = "消音"
 $btnAppMute.Location = New-Object System.Drawing.Point(328, 18)
 $btnAppMute.Size = New-Object System.Drawing.Size(62, 28)
 $btnAppMute.FlatStyle = "Flat"
-$btnAppMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
-$btnAppMute.ForeColor = [System.Drawing.Color]::White
+$btnAppMute.BackColor = `$cBtnBg
+$btnAppMute.ForeColor = `$cFormFg
 $grpApp.Controls.Add($btnAppMute)
 
 $btnRefresh = New-Object System.Windows.Forms.Button
@@ -870,15 +870,15 @@ $btnRefresh.Text = "更新"
 $btnRefresh.Location = New-Object System.Drawing.Point(396, 18)
 $btnRefresh.Size = New-Object System.Drawing.Size(54, 28)
 $btnRefresh.FlatStyle = "Flat"
-$btnRefresh.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
-$btnRefresh.ForeColor = [System.Drawing.Color]::White
+$btnRefresh.BackColor = `$cBtnBg
+$btnRefresh.ForeColor = `$cFormFg
 $grpApp.Controls.Add($btnRefresh)
 
 $lblAppVal = New-Object System.Windows.Forms.Label
 $lblAppVal.Location = New-Object System.Drawing.Point(15, 56)
 $lblAppVal.Size = New-Object System.Drawing.Size(435, 24)
 $lblAppVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
-$lblAppVal.ForeColor = [System.Drawing.Color]::White
+$lblAppVal.ForeColor = `$cFormFg
 $grpApp.Controls.Add($lblAppVal)
 
 $trackApp = New-Object System.Windows.Forms.TrackBar
@@ -957,15 +957,15 @@ $lblMicVal = New-Object System.Windows.Forms.Label
 $lblMicVal.Location = New-Object System.Drawing.Point(15, 38)
 $lblMicVal.Size = New-Object System.Drawing.Size(320, 24)
 $lblMicVal.Font = New-Object System.Drawing.Font("Meiryo UI", 10, [System.Drawing.FontStyle]::Bold)
-$lblMicVal.ForeColor = [System.Drawing.Color]::White
+$lblMicVal.ForeColor = `$cFormFg
 $grpMic.Controls.Add($lblMicVal)
 
 $btnMicMute = New-Object System.Windows.Forms.Button
 $btnMicMute.Location = New-Object System.Drawing.Point(345, 22)
 $btnMicMute.Size = New-Object System.Drawing.Size(105, 30)
 $btnMicMute.FlatStyle = "Flat"
-$btnMicMute.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 60)
-$btnMicMute.ForeColor = [System.Drawing.Color]::White
+$btnMicMute.BackColor = `$cBtnBg
+$btnMicMute.ForeColor = `$cFormFg
 $grpMic.Controls.Add($btnMicMute)
 
 $trackMic = New-Object System.Windows.Forms.TrackBar
@@ -1029,7 +1029,7 @@ function UpdateMasterUI {
 
     $mute = [LogVolumeApp.CoreAudio]::GetMasterMute()
     $btnMasterMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
-    $btnMasterMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
+    $btnMasterMute.BackColor = if ($mute) { `$cBtnMuteOn } else { `$cBtnBg }
 }
 
 function UpdateMicUI {
@@ -1061,12 +1061,12 @@ function UpdateMicUI {
 
     $mute = [LogVolumeApp.CoreAudio]::GetMicMute()
     $btnMicMute.Text = if ($mute) { "ミュート中" } else { "ミュート" }
-    $btnMicMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
+    $btnMicMute.BackColor = if ($mute) { `$cBtnMuteOn } else { `$cBtnBg }
 }
 
 function UpdateAppMuteButton($mute) {
     $btnAppMute.Text = if ($mute) { "消音中" } else { "消音" }
-    $btnAppMute.BackColor = if ($mute) { [System.Drawing.Color]::FromArgb(160, 45, 45) } else { [System.Drawing.Color]::FromArgb(55, 55, 60) }
+    $btnAppMute.BackColor = if ($mute) { `$cBtnMuteOn } else { `$cBtnBg }
 }
 
 function RefreshAppList {
@@ -1248,3 +1248,4 @@ RefreshAppList
 
 # フォーム表示
 [System.Windows.Forms.Application]::Run($form)
+
