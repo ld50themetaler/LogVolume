@@ -1,2 +1,2 @@
 @echo off
-start "" wscript.exe //nologo "%~dp0LogVolume.vbs"
+powershell.exe -NoProfile -STA -File "%~dp0LogVolume.ps1"
