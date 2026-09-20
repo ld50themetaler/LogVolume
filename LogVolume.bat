@@ -1,2 +1,2 @@
 @echo off
-powershell.exe -NoProfile -STA -File "%~dp0LogVolume.ps1"
+start "" powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0LogVolume.ps1"
