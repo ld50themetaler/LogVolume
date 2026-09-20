@@ -5,8 +5,10 @@ Dim ws, scriptDir, ps1Path, command
 Set ws = CreateObject("WScript.Shell")
 scriptDir = Replace(WScript.ScriptFullName, WScript.ScriptName, "")
 ps1Path = scriptDir & "LogVolume.ps1"
-command = "powershell.exe -NoProfile -File """ & ps1Path & """"
 
-' 通常のウィンドウで表示し、終了を待ってから戻る
-' Windows Defender の検出を抑えるため、-ExecutionPolicy Bypass と -WindowStyle Hidden は使わない
+' WinForms を確実に STA で起動する。
+' RemoteSigned は Bypass と異なり、実行ポリシーを無条件に回避しない。
+command = "powershell.exe -NoProfile -STA -ExecutionPolicy RemoteSigned -File """ & ps1Path & """"
+
+' 通常のウィンドウで起動し、エラー内容を確認できるようにする。
 ws.Run command, 1, True
