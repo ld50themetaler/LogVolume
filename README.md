@@ -38,7 +38,7 @@ PowerShell 7を使用する場合は、次のコマンドでも起動できま�
 pwsh.exe -NoProfile -STA -File ".\LogVolume.ps1"
 ```
 
-`-STA` はWindows Forms UIの起動に必要です。PowerShellターミナルを表示して実行する場合、`LogVolume.vbs` は使用しません。
+`-STA` はWindows Forms UIの起動に必要です。PowerShellターミナルを表示して実行する場合、VBSランチャーは使用しません。
 
 ### ダウンロード後に実行できない場合
 
@@ -52,12 +52,7 @@ Unblock-File -Path ".\LogVolume.ps1"
 
 ### バッチファイルから起動する場合
 
-コンソールを表示したまま起動するには、次の内容を `LogVolume.bat` として保存します。
-
-```bat
-@echo off
-powershell.exe -NoProfile -STA -File "%~dp0LogVolume.ps1"
-```
+`LogVolume.bat` をダブルクリックして起動できます。このバッチファイルはVBSを使用せず、PowerShellを直接起動します。
 
 エラーを確認しやすくするため、開発中はPowerShellターミナルから直接起動することを推奨します。
 
@@ -66,8 +61,7 @@ powershell.exe -NoProfile -STA -File "%~dp0LogVolume.ps1"
 ```text
 LogVolume/
 ├── LogVolume.ps1   # メインスクリプト（WinForms UI / Windows Core Audio）
-├── LogVolume.vbs   # 非表示起動が必要な場合の任意のランチャー
-├── LogVolume.bat   # コンソール表示で起動する任意のランチャー
+├── LogVolume.bat   # PowerShellを直接起動するランチャー
 ├── README.md
 └── screenshot.png
 ```
